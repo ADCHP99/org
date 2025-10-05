@@ -22,8 +22,42 @@ export interface IEmpleadoNode {
   foto?: string;
 
   // Opcionales de jerarquía
+    codigoPosicion?: string;
+    codigoPosicionReporta?: string;
+    vacante?: boolean;
+    rutaManual?: string;
+    codCentroCosto?: string;
+    codDepAx?: string;
+
+    children?: IEmpleadoNode[]; 
+    fechaIngreso?: string;
+    userid?: string;
+
+}
+export interface IEmpleadoRaw {
   codigoPosicion?: string;
+  CodigoPosicion?: string; // a veces llega con mayúscula
   codigoPosicionReporta?: string;
-  vacante?: boolean;
+  CodigoPosicionReporta?: string;
+  codigoEmpleado?: string;
+  codigoEmpleadoJefe?: string;
+  JefeInmediato?: { codigoEmpleadoJefe?: string };
+  vacante?: string;
+  puesto?: string;
+  departamento?: string;
+  centroCosto?: string;
+  unidadNegocio?: string;
+  nombreDepartamento?: string;
+  nombreCentroCosto?: string;
+  codDepAx?: string;
+  nombreLineaNegocio?: string;
+  emailCorporativo?: string;
+  foto?: string;
+  nombre?: string;
+  apellido?: string;
   rutaManual?: string;
+  ruta?: string;
+  codCentroCosto?: string;  
+  fechaIngreso?:string;
+  userid?:string;
 }

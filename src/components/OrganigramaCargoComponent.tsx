@@ -1,6 +1,6 @@
 // components/OrganigramaCargoComponent.tsx
 import React, { useEffect, useRef, useState } from "react";
-import  {OrgChart}  from "d3-org-chart";
+import { OrgChart } from "d3-org-chart";
 import Select from "react-select";
 import type { ICargoNode, IEmpleado } from "../interfaces/IOrganigramaCargo";
 import { parseOrganigramaCargo } from "../utils/parseOrganigramaCargo";
@@ -14,42 +14,30 @@ import {
   faFileArrowDown,
 } from "@fortawesome/free-solid-svg-icons";
 
+interface OptionType {
+  value: string;
+  label: string;
+}
+
 interface OrganigramaCargoProps {
   rawData: any;
   viewMode: { value: "cargo" | "persona"; label: string } | null;
   setViewMode: React.Dispatch<
     React.SetStateAction<{ value: "cargo" | "persona"; label: string } | null>
   >;
+
+  lineaNegocio: OptionType | null;
+  setLineaNegocio: React.Dispatch<React.SetStateAction<OptionType | null>>;
+  centroCosto: OptionType | null;
+  setCentroCosto: React.Dispatch<React.SetStateAction<OptionType | null>>;
+  departamento: OptionType | null;
+  setDepartamento: React.Dispatch<React.SetStateAction<OptionType | null>>;
+
+  setLineaNegocioOpts: React.Dispatch<React.SetStateAction<OptionType[]>>;
+  setCentroCostoOpts: React.Dispatch<React.SetStateAction<OptionType[]>>;
+  setDepartamentoOpts: React.Dispatch<React.SetStateAction<OptionType[]>>;
 }
 
-interface OptionType {
-  value: string;
-  label: string;
-}
-
-const viewOptions = [
-  { value: "cargo", label: "Vista por Cargo" },
-  { value: "persona", label: "Vista por Persona" },
-];
-
-function getManualUrl(
-  rutaManual: string,
-  tipo: "usuario" | "procedimientos" | "funciones"
-): string {
-  if (!rutaManual) return "";
-
-  const cleanPath = rutaManual.replace(/\\/g, "/");
-  const safePath = cleanPath.replace(/ /g, "%20");
-
-  let carpeta = "";
-  if (tipo === "usuario") carpeta = "Manual%20de%20Usuario";
-  if (tipo === "procedimientos") carpeta = "Manual%20de%20Procedimientos";
-  if (tipo === "funciones") carpeta = "Manual%20de%20Funciones";
-
-  return `http://srv-shp/${safePath}/${carpeta}/`;
-}
-
-//  función para traer nodos filtrados + sus ancestros
 function getHierarchySubset(
   data: ICargoNode[],
   predicate: (n: ICargoNode) => boolean
@@ -74,85 +62,87 @@ const OrganigramaCargoComponent: React.FC<OrganigramaCargoProps> = ({
   rawData = [],
   viewMode,
   setViewMode,
+  lineaNegocio,
+  setLineaNegocio,
+  centroCosto,
+  setCentroCosto,
+  departamento,
+  setDepartamento,
+  setLineaNegocioOpts,
+  setCentroCostoOpts,
+  setDepartamentoOpts,
 }) => {
   const chartRef = useRef<any>(null);
   const containerId = "organigrama-cargo";
 
+  const [fullData, setFullData] = useState<ICargoNode[]>([]);
   const [data, setData] = useState<ICargoNode[]>([]);
   const [selectedEmpleados, setSelectedEmpleados] = useState<IEmpleado[]>([]);
-  const [selectedEmpleado, setSelectedEmpleado] = useState<IEmpleado | null>(
-    null
-  );
+  const [selectedEmpleado, setSelectedEmpleado] = useState<IEmpleado | null>(null);
   const [showDialog, setShowDialog] = useState(false);
+  const [menuAbierto, setMenuAbierto] = useState(false);
+ function getManualUrl(
+  codEmp?: string,
+  codDepAx?: string,
+  codDepartamento?: string,
+  tipo?: "usuario" | "procedimientos" | "funciones"
+): string {
+  let carpeta = "";
+  if (tipo === "usuario") carpeta = "Manual de usuario";
+  if (tipo === "procedimientos") carpeta = "Manual de procedimientos";
+  if (tipo === "funciones") carpeta = "Manual de funciones";
 
-  // filtros
-  const [lineaNegocio, setLineaNegocio] = useState<OptionType | null>(null);
-  const [centroCosto, setCentroCosto] = useState<OptionType | null>(null);
-  const [departamento, setDepartamento] = useState<OptionType | null>(null);
+  const depParam =
+    codDepAx && codDepartamento
+      ? `${codDepAx}|${codDepartamento}`
+      : codDepAx || "";
 
-  // opciones de selects
-  const [lineaNegocioOpts, setLineaNegocioOpts] = useState<OptionType[]>([]);
-  const [centroCostoOpts, setCentroCostoOpts] = useState<OptionType[]>([]);
-  const [departamentoOpts, setDepartamentoOpts] = useState<OptionType[]>([]);
+  return `https://soporte.liris.com.ec/rhh/UserDocsF.aspx?Carpeta=${encodeURIComponent(
+    carpeta
+  )}&CodEmp=${codEmp || ""}&DepartMyProcessId=${depParam}`;
+}
 
-  // Procesar datos de entrada
-  useEffect(() => {
-    if (rawData && rawData.length > 0) {
-      const parsed = parseOrganigramaCargo(rawData);
-      setData(parsed);
-      console.log("Parsed cargos:", parsed);
+useEffect(() => {
+  if (rawData && rawData.length > 0) {
+    const parsed = parseOrganigramaCargo(rawData);
 
-      // Opciones únicas de línea de negocio
-      const lineas = Array.from(
-        new Set(parsed.map((c) => c.nombreLineaNegocio).filter(Boolean))
-      );
-      setLineaNegocioOpts(lineas.map((ln: any) => ({ value: ln, label: ln })));
-    }
-  }, [rawData]);
+    let visibleData: ICargoNode[] = [];
 
-  // Actualizar centros de costo cuando cambia la línea de negocio
+    setFullData(visibleData);
+    setData(visibleData);
+
+    // 🔧 aquí también si pueblas filtros (línea de negocio, depto, etc.), hazlo con visibleData
+  } else {
+    setFullData([]);
+    setData([]);
+    // limpia filtros si los usas
+  }
+}, [rawData]);
+
   useEffect(() => {
     if (!lineaNegocio) {
       setCentroCostoOpts([]);
-      setCentroCosto(null);
       return;
     }
 
     const ccs = Array.from(
       new Set(
-        data
+        fullData
           .filter((c) => c.nombreLineaNegocio === lineaNegocio.value)
           .map((c) => c.nombreCentroCosto)
           .filter(Boolean)
       )
     );
     setCentroCostoOpts(ccs.map((cc: any) => ({ value: cc, label: cc })));
-  }, [lineaNegocio, data]);
+  }, [lineaNegocio, fullData, setCentroCostoOpts]);
 
-  // Actualizar departamentos cuando cambia centro de costo
   useEffect(() => {
-    if (!lineaNegocio || !centroCosto) {
-      setDepartamentoOpts([]);
-      setDepartamento(null);
-      return;
-    }
-
     const deps = Array.from(
-      new Set(
-        data
-          .filter(
-            (c) =>
-              c.nombreLineaNegocio === lineaNegocio.value &&
-              c.nombreCentroCosto === centroCosto.value
-          )
-          .map((c) => c.nombreDepartamento)
-          .filter(Boolean)
-      )
+      new Set(fullData.map((c) => c.nombreDepartamento).filter(Boolean))
     );
     setDepartamentoOpts(deps.map((dep: any) => ({ value: dep, label: dep })));
-  }, [lineaNegocio, centroCosto, data]);
+  }, [fullData, setDepartamentoOpts]);
 
-  // Manejar clicks en botones "Ver ficha"
   useEffect(() => {
     const handler = (e: Event) => {
       const target = e.target as HTMLElement;
@@ -176,23 +166,17 @@ const OrganigramaCargoComponent: React.FC<OrganigramaCargoProps> = ({
     return () => document.removeEventListener("click", handler);
   }, [data]);
 
-  // Renderizar organigrama con filtros
   useEffect(() => {
-    if (!rawData.length) return;
+    if (!rawData || rawData.length === 0) return;
 
-    let filtered = [...data];
     const predicate = (n: ICargoNode) => {
-      const matchLinea =
-        !lineaNegocio || n.nombreLineaNegocio === lineaNegocio.value;
-      const matchCentro =
-        !centroCosto || n.nombreCentroCosto === centroCosto.value;
-      const matchDep =
-        !departamento || n.nombreDepartamento === departamento.value;
-
+      const matchLinea = !lineaNegocio || n.nombreLineaNegocio === lineaNegocio.value;
+      const matchCentro = !centroCosto || n.nombreCentroCosto === centroCosto.value;
+      const matchDep = !departamento || n.nombreDepartamento === departamento.value;
       return matchLinea && matchCentro && matchDep;
     };
 
-    filtered = getHierarchySubset(rawData, predicate);
+    const filtered = getHierarchySubset(rawData, predicate);
     setData(filtered);
 
     if (chartRef.current) {
@@ -201,14 +185,19 @@ const OrganigramaCargoComponent: React.FC<OrganigramaCargoProps> = ({
       chartRef.current = new OrgChart()
         .container(`#${containerId}`)
         .data(filtered)
-        .nodeWidth(() => 280)
-        .nodeHeight(() => 160)
-        .childrenMargin(() => 40)
+        .nodeWidth(() => 220)
+        .nodeHeight(() => 100)
+        .childrenMargin(() => 100)
         .compactMarginBetween(() => 30)
         .compactMarginPair(() => 40)
+        .linkUpdate((_d: any, _i: number, arr: any[]) => {
+          arr.forEach((el: any) => {
+            el.setAttribute("stroke", "#444");
+            el.setAttribute("stroke-width", "1.0");
+          });
+        })
         .nodeContent((d: any) => {
           const empleados = d.data.empleados || [];
-
           return `
             <div style="padding:10px; border-radius:10px; background:#fff;
                         box-shadow:0 2px 6px rgba(0,0,0,0.15);
@@ -220,12 +209,12 @@ const OrganigramaCargoComponent: React.FC<OrganigramaCargoProps> = ({
               ${
                 empleados.length > 0
                   ? `<button class="btn-ver-ficha"
-                             data-id="${d.data.id}"
-                             style="padding:6px 12px; border-radius:6px;
-                                    background:#007bff; color:#fff; border:none;
-                                    cursor:pointer; font-size:12px;">
-                       Ver ficha
-                     </button>`
+                         data-id="${d.data.id}"
+                         style="padding:6px 12px; border-radius:6px;
+                                background:#007bff; color:#fff; border:none;
+                                cursor:pointer; font-size:12px;">
+                   Ver ficha
+                 </button>`
                   : `<div style="font-size:12px; color:#999;">Vacante</div>`
               }
             </div>
@@ -233,274 +222,239 @@ const OrganigramaCargoComponent: React.FC<OrganigramaCargoProps> = ({
         })
         .render();
     }
+
+    const handleResize = () => {
+      chartRef.current?.fit();
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, [rawData, lineaNegocio, centroCosto, departamento]);
 
-  // Controles
   const zoomIn = () => chartRef.current?.zoomIn();
   const zoomOut = () => chartRef.current?.zoomOut();
   const handleFit = () => chartRef.current?.fit();
   const ExpandirAll = () => chartRef.current?.expandAll();
-  const CollapseAll = () => chartRef.current?.collapseAll();
-  const horizontal = () => chartRef.current?.compact(true).render().fit();
-  const vertical = () => chartRef.current?.compact(false).render().fit();
- const handleExportSVG = () => {
-  if (!chartRef.current) return;
-
-  // 🔹 Centrar/ajustar organigrama antes de exportar
-  chartRef.current.fit();
-
-  // 🔹 Ahora tomamos el SVG ya centrado
-  const svgElement = document.querySelector(
-    `#${containerId} svg`
-  ) as SVGSVGElement | null;
-
-  if (!svgElement) return;
-
-  const serializer = new XMLSerializer();
-  const svgContent = serializer.serializeToString(svgElement);
-  const blob = new Blob([svgContent], { type: "image/svg+xml;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = "organigrama-cargo.svg";
-  link.click();
-
-  URL.revokeObjectURL(url);
-};
-
+  const CollapseAll = () => chartRef.current?.collapseAll().fit();
+  const handleExportSVG = () => {
+    if (!chartRef.current) return;
+    chartRef.current.fit();
+    setTimeout(() => {
+      const svgElement = document.querySelector(
+        `#${containerId} svg`
+      ) as SVGSVGElement | null;
+      if (!svgElement) return;
+      const serializer = new XMLSerializer();
+      const svgContent = serializer.serializeToString(svgElement);
+      const blob = new Blob([svgContent], {
+        type: "image/svg+xml;charset=utf-8",
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "organigrama-cargo.svg";
+      link.click();
+      URL.revokeObjectURL(url);
+    }, 300);
+  };
 
   return (
-    <div>
-      {/* Filtros */}
-      <div className="flex gap-2 p-3">
-        <Select
-          options={lineaNegocioOpts}
-          value={lineaNegocio}
-          onChange={setLineaNegocio}
-          placeholder="Línea de Negocio"
-          isClearable
-        />
-        <Select
-          options={centroCostoOpts}
-          value={centroCosto}
-          onChange={setCentroCosto}
-          placeholder="Centro de Costo"
-          isClearable
-          isDisabled={!lineaNegocio}
-        />
-        <Select
-          options={departamentoOpts}
-          value={departamento}
-          onChange={setDepartamento}
-          placeholder="Departamento"
-          isClearable
-          isDisabled={!centroCosto}
-        />
-        <Select
-          options={viewOptions}
-          value={viewMode}
-          onChange={(opt) => setViewMode(opt)}
-          placeholder="Seleccionar vista"
-        />
-      </div>
-
-      <div>
-        <button
-          className="px-4 py-2 bg-blue-600 text-white rounded"
-          onClick={horizontal}
-        >
-          Horizontal
+    <div className="flex flex-col h-full">
+      {/* Botones de control */}
+      <div className="flex flex-col sm:flex-row gap-2 mb-4 py-2 px-1 sm:px-0 justify-center sm:justify-end">
+        <button className="w-full sm:w-auto px-4 py-2 bg-gray-700 text-white rounded flex items-center gap-2" onClick={zoomIn}>
+          <FontAwesomeIcon icon={faMagnifyingGlassPlus} /> Zoom
+        </button>
+        <button className="w-full sm:w-auto px-4 py-2 bg-gray-700 text-white rounded flex items-center gap-2" onClick={zoomOut}>
+          <FontAwesomeIcon icon={faMagnifyingGlassMinus} /> Zoom
+        </button>
+        <button className="w-full sm:w-auto px-4 py-2 bg-gray-700 text-white rounded flex items-center gap-2" onClick={handleFit}>
+          <FontAwesomeIcon icon={faExpand} /> Ajustar
+        </button>
+        <button className="w-full sm:w-auto px-4 py-2 bg-green-500 text-white rounded flex items-center gap-2" onClick={ExpandirAll}>
+          <FontAwesomeIcon icon={faSitemap} /> Abrir Organigrama
+        </button>
+        <button className="w-full sm:w-auto px-4 py-2 bg-yellow-500 text-white rounded flex items-center gap-2" onClick={CollapseAll}>
+          <FontAwesomeIcon icon={faCompress} /> Cerrar Organigrama
+        </button>
+        <button className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded flex items-center gap-2" onClick={handleExportSVG}>
+          <FontAwesomeIcon icon={faFileArrowDown} /> Exportar SVG
         </button>
         <button
-          className="px-4 py-2 bg-blue-600 text-white rounded"
-          onClick={vertical}
-        >
-          Vertical
-        </button>
+    onClick={() => chartRef.current?.compact(false).render().fit()}
+    className="px-3 py-2 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700"
+  >
+    Horizontal
+  </button>
+  <button
+    onClick={() => chartRef.current?.compact(true).render().fit()}
+    className="px-3 py-2 bg-green-600 text-white rounded-lg shadow hover:bg-green-700"
+  >
+    Vertical
+  </button>
       </div>
 
-      {/* Controles */}
-      <div className="flex justify-end gap-2 p-3">
-  <button
-    className="px-4 py-2 bg-gray-700 text-white rounded flex items-center gap-2"
-    onClick={zoomIn}
-  >
-    <FontAwesomeIcon icon={faMagnifyingGlassPlus} />
-    Zoom 
-  </button>
-  <button
-    className="px-4 py-2 bg-gray-700 text-white rounded flex items-center gap-2"
-    onClick={zoomOut}
-  >
-    <FontAwesomeIcon icon={faMagnifyingGlassMinus} />
-    Zoom 
-  </button>
-  <button
-    className="px-4 py-2 bg-gray-700 text-white rounded flex items-center gap-2"
-    onClick={handleFit}
-  >
-    <FontAwesomeIcon icon={faExpand} />
-    Ajustar
-  </button>
-  <button
-    className="px-4 py-2 bg-green-500 text-white rounded flex items-center gap-2"
-    onClick={ExpandirAll}
-  >
-    <FontAwesomeIcon icon={faSitemap} />
-    Abrir Organigrama
-  </button>
-  <button
-    className="px-4 py-2 bg-yellow-500 text-white rounded flex items-center gap-2"
-    onClick={CollapseAll}
-  >
-    <FontAwesomeIcon icon={faCompress} />
-    Cerrar Organigrama
-  </button>
-  <button
-    className="px-4 py-2 bg-blue-600 text-white rounded flex items-center gap-2"
-    onClick={handleExportSVG}
-  >
-    <FontAwesomeIcon icon={faFileArrowDown} />
-    Exportar SVG
-  </button>
-</div>
+      {/* Contenedor principal del organigrama */}
+      <div className="flex-1 overflow-x-auto">
+        <div id={containerId} className="w-full h-full"></div>
+      </div>
 
+    {showDialog && (
+  <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-50">
+    <div className="bg-white rounded-lg shadow-lg p-6 w-[600px]">
+      <h2 className="text-lg font-bold mb-4">Ficha de Empleado</h2>
 
-      {/* Contenedor */}
-      <div id={containerId} style={{ width: "100%", height: "80vh" }}></div>
-
-      {/* Modal */}
-      {showDialog && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-50">
-          <div className="bg-white rounded-lg shadow-lg p-6 w-[600px]">
-            <h2 className="text-lg font-bold mb-4">Ficha de Empleado</h2>
-
-            {selectedEmpleado ? (
-              <div>
-                {selectedEmpleado.foto && (
-                  <img
-                    src={selectedEmpleado.foto}
-                    alt="Foto"
-                    className="w-24 h-24 rounded-full mx-auto mb-4"
-                  />
-                )}
-
-                <p>
-                  <strong>Nombre:</strong> {selectedEmpleado.nombre}{" "}
-                  {selectedEmpleado.apellido}
-                </p>
-                <p>
-                  <strong>Email:</strong>{" "}
-                  {selectedEmpleado.emailCorporativo || "N/A"}
-                </p>
-                <p>
-                  <strong>Puesto:</strong>{" "}
-                  {selectedEmpleado.puestoEmpleado || "N/A"}
-                </p>
-                <p>
-                  <strong>Departamento:</strong>{" "}
-                  {selectedEmpleado.nombreDepartamento || "N/A"}
-                </p>
-                <p>
-                  <strong>Centro de Costo:</strong>{" "}
-                  {selectedEmpleado.nombreCentroCosto || "N/A"}
-                </p>
-                <p>
-                  <strong>Línea de Negocio:</strong>{" "}
-                  {selectedEmpleado.nombreLineaNegocio || "N/A"}
-                </p>
-
-                {/* Manuales SOLO en ficha individual */}
-                {selectedEmpleado?.rutaManual && (
-                  <div className="mt-4 flex gap-2">
-                    <a
-                      href={getManualUrl(
-                        selectedEmpleado.rutaManual,
-                        "usuario"
-                      )}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-3 py-1 bg-green-600 text-white rounded"
-                    >
-                       Usuario
-                    </a>
-                    <a
-                      href={getManualUrl(
-                        selectedEmpleado.rutaManual,
-                        "procedimientos"
-                      )}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-3 py-1 bg-cyan-600 text-white rounded"
-                    >
-                       Procedimientos
-                    </a>
-                    <a
-                      href={getManualUrl(
-                        selectedEmpleado.rutaManual,
-                        "funciones"
-                      )}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-3 py-1 bg-purple-600 text-white rounded"
-                    >
-                       Funciones
-                    </a>
-                  </div>
-                )}
-
-                <div className="mt-6 flex justify-between">
-                  <button
-                    className="px-4 py-2 bg-red-500 text-white rounded"
-                    onClick={() => setShowDialog(false)}
-                  >
-                    Cerrar
-                  </button>
-                </div>
-              </div>
+      {/* 🔹 Ficha para un solo empleado */}
+      {selectedEmpleado ? (
+        <div className="text-center">
+          {/* Foto + nombre */}
+          <div className="flex flex-col items-center mb-4">
+            {selectedEmpleado.foto ? (
+              <img
+                src={selectedEmpleado.foto}
+                alt="Foto"
+                className="w-24 h-24 rounded-full border-4 border-blue-200 shadow-md"
+              />
             ) : (
-              <div className="space-y-3">
-                {selectedEmpleados.map((emp, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center justify-between border p-2 rounded"
-                  >
-                    <div className="flex items-center space-x-3">
-                      {emp.foto && (
-                        <img
-                          src={emp.foto}
-                          alt="Foto"
-                          className="w-12 h-12 rounded-full"
-                        />
-                      )}
-                      <span>
-                        {emp.nombre} {emp.apellido}
-                      </span>
-                    </div>
-                    <button
-                      className="px-3 py-1 bg-blue-500 text-white rounded"
-                      onClick={() => setSelectedEmpleado(emp)}
-                    >
-                      Ver más
-                    </button>
-                  </div>
-                ))}
-
-                {/* Solo botón cerrar aquí */}
-                <div className="mt-6 flex justify-end">
-                  <button
-                    className="px-4 py-2 bg-red-500 text-white rounded"
-                    onClick={() => setShowDialog(false)}
-                  >
-                    Cerrar
-                  </button>
-                </div>
+              <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-3xl">
+                
               </div>
             )}
+            <h3 className="mt-3 text-xl font-semibold text-gray-800">
+              {selectedEmpleado.nombre} {selectedEmpleado.apellido}
+            </h3>
+            <p className="text-sm text-gray-500">
+              {selectedEmpleado.puestoEmpleado || "Sin puesto"}
+            </p>
+          </div>
+
+          {/* Información adicional */}
+          <div className="space-y-2 text-sm text-gray-700 text-center">
+            <p>
+              <strong>Email:</strong>{" "}
+              {selectedEmpleado.emailCorporativo || "N/A"}
+            </p>
+            <p>
+              <strong>Línea de Negocio:</strong>{" "}
+              {selectedEmpleado.nombreLineaNegocio || "N/A"}
+            </p>
+            <p>
+              <strong>Centro de Costo:</strong>{" "}
+              {selectedEmpleado.nombreCentroCosto || "N/A"}
+            </p>
+            <p>
+              <strong>Departamento:</strong>{" "}
+              {selectedEmpleado.nombreDepartamento || "N/A"}
+            </p>
+            <p>
+              <strong>Fecha de ingreso a la empresa:</strong>{" "}
+              {selectedEmpleado.fechaIngreso || "N/A"}
+            </p>
+          </div>
+
+          {/* Botones de Manuales */}
+          <div className="mt-6 flex flex-nowrap justify-center gap-3">
+            <a
+              href={getManualUrl(
+                selectedEmpleado.codigoEmpleado,
+                selectedEmpleado.codDepAx,
+                selectedEmpleado.codDepartamento,
+                "funciones"
+              )}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg shadow hover:bg-purple-700 transition"
+            >
+              Manual de Funciones
+            </a>
+            <a
+              href={getManualUrl(
+                selectedEmpleado.codigoEmpleado,
+                selectedEmpleado.codDepAx,
+                selectedEmpleado.codDepartamento,
+                "procedimientos"
+              )}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="px-4 py-2 bg-cyan-600 text-white rounded-lg shadow hover:bg-cyan-700 transition"
+            >
+              Manual de Procedimientos
+            </a>
+            <a
+              href={getManualUrl(
+                selectedEmpleado.codigoEmpleado,
+                selectedEmpleado.codDepAx,
+                selectedEmpleado.codDepartamento,
+                "usuario"
+              )}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg shadow hover:bg-green-700 transition"
+            >
+              Manual de Usuario
+            </a>
+          </div>
+
+          {/* Cerrar */}
+          <div className="mt-6 flex justify-end">
+            <button
+              className="px-5 py-2 bg-red-500 text-white rounded-lg shadow hover:bg-red-600 transition"
+              onClick={() => setShowDialog(false)}
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
+      ) : (
+        //  Si hay múltiples empleados en un nodo
+        <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
+          {selectedEmpleados.map((emp, idx) => (
+            <div
+              key={idx}
+              className="flex items-center  justify-between border p-3 rounded-lg shadow-sm hover:shadow-md transition"
+            >
+              <div className="flex items-center space-x-3">
+                {emp.foto ? (
+                  <img
+                    src={emp.foto}
+                    alt="Foto"
+                    className="w-12 h-12 rounded-full border"
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center text-gray-500">
+                    
+                  </div>
+                )}
+                <span className="font-medium text-gray-800">
+                  {emp.nombre} {emp.apellido}
+                </span>
+              </div>
+              <button
+                className="px-3 py-1 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700 transition"
+                onClick={() => setSelectedEmpleado(emp)}
+              >
+                Ver más
+              </button>
+            </div>
+          ))}
+
+          {/* Botón cerrar */}
+          <div className="mt-6 flex justify-end">
+            <button
+              className="px-5 py-2 bg-red-500 text-white rounded-lg shadow hover:bg-red-600 transition"
+              onClick={() => setShowDialog(false)}
+            >
+              Cerrar
+            </button>
           </div>
         </div>
       )}
+    </div>
+  </div>
+)}
+
     </div>
   );
 };

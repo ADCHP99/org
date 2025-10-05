@@ -17,15 +17,15 @@ export function parseOrganigramaPersona(json: IEmpleadoRaw[]): IEmpleadoNode[] {
     }
   });
 
-  const presidenteId = posToEmp["00001"] ? `E-${posToEmp["00001"]}` : null;
+//  const presidenteId = posToEmp["00001"] ? `E-${posToEmp["00001"]}` : null;
 
   json.forEach((item) => {
     const codigoPosicion = toStr(item.codigoPosicion || (item as any).CodigoPosicion);
     let codigoPosicionReporta = toStr(item.codigoPosicionReporta || (item as any).CodigoPosicionReporta);
 
-    // ⚠️ Validación: si no hay posición, ignoramos este nodo
+    //  Validación: si no hay posición, ignoramos este nodo
     if (!codigoPosicion) {
-      console.warn("⚠️ Nodo ignorado por no tener codigoPosicion:", item);
+      //console.warn("⚠️ Nodo ignorado por no tener codigoPosicion:", item);
       return;
     }
 
@@ -66,11 +66,14 @@ export function parseOrganigramaPersona(json: IEmpleadoRaw[]): IEmpleadoNode[] {
 
     // Evitar ciclos
     if (parentId === nodeId) {
-      console.warn("⚠️ Ciclo detectado, se fuerza root:", nodeId);
+      //console.warn("⚠️ Ciclo detectado, se fuerza root:", nodeId);
       parentId = null;
     }
 
     if (esVacante) {
+      if(!toStr(item.puesto)){
+        return
+      }
       // 🔎 Nodo vacante
       nodos.push({
         id: nodeId,
@@ -85,7 +88,6 @@ export function parseOrganigramaPersona(json: IEmpleadoRaw[]): IEmpleadoNode[] {
         unidadNegocio: toStr(item.unidadNegocio),
         nombreDepartamento: toStr(item.nombreDepartamento),
         nombreCentroCosto: toStr(item.nombreCentroCosto),
-        codDepAx: toStr(item.codDepAx),
         nombreLineaNegocio: toStr(item.nombreLineaNegocio),
         emailCorporativo: "",
         foto: "",
@@ -95,7 +97,7 @@ export function parseOrganigramaPersona(json: IEmpleadoRaw[]): IEmpleadoNode[] {
         rutaManual: "",
       });
     } else {
-      // 👤 Nodo persona
+      //  Nodo persona
       nodos.push({
         id: nodeId,
         parentId,
@@ -109,7 +111,7 @@ export function parseOrganigramaPersona(json: IEmpleadoRaw[]): IEmpleadoNode[] {
         unidadNegocio: toStr(item.unidadNegocio),
         nombreDepartamento: toStr(item.nombreDepartamento),
         nombreCentroCosto: toStr(item.nombreCentroCosto),
-        codDepAx: toStr(item.codDepAx),
+        
         nombreLineaNegocio: toStr(item.nombreLineaNegocio),
         emailCorporativo: toStr(item.emailCorporativo),
         foto: toStr(item.foto),
@@ -117,35 +119,30 @@ export function parseOrganigramaPersona(json: IEmpleadoRaw[]): IEmpleadoNode[] {
         codigoPosicionReporta,
         vacante: false,
         rutaManual: toStr((item as any).rutaManual || (item as any).ruta),
+        fechaIngreso: toStr(item.fechaIngreso || "")
 
       });
     }
   });
 
-  // 🕵️ Depuración: múltiples raíces
+  //  Depuración: múltiples raíces
   const roots = nodos.filter((n) => n.parentId === null);
   if (roots.length > 1) {
-    console.group("⚠️ Múltiples raíces detectadas en organigrama");
+    //console.group(" Múltiples raíces detectadas en organigrama");
     roots.forEach((r) => {
-      console.log({
-        id: r.id,
-        tipo: r.tipo,
-        puesto: r.puesto,
-        codigoPosicion: r.codigoPosicion,
-        codigoPosicionReporta: r.codigoPosicionReporta,
-      });
+      
     });
-    console.groupEnd();
+  //  console.groupEnd();
   }
 
   // 🔎 Depuración: IDs duplicados
   const ids = new Set<string>();
   nodos.forEach((n) => {
     if (ids.has(n.id)) {
-      console.error("⚠️ Duplicado detectado:", n);
+    //  console.error("⚠️ Duplicado detectado:", n);
     }
     ids.add(n.id);
   });
-
+  
   return nodos;
 }

@@ -1,99 +1,71 @@
+// src/services/organigramaService.ts
+
 import type { ICargoNode } from "../interfaces/IOrganigramaCargo";
+import type { IEmpleadoNode, IEmpleadoRaw } from "../interfaces/IOrganigramaPersona";
 import { parseOrganigramaCargo } from "../utils/parseOrganigramaCargo";
-import type { IEmpleadoNode } from "../interfaces/IOrganigramaPersona";
 import { parseOrganigramaPersona } from "../utils/parseOrganigramaPersona";
 
-const API_URL = "http://localhost:8080/wordpress/wp-json/delportal/v1";
-
-interface ICargoRaw {
-  codigoPosicion?: string;
-  codigoPosicionReporta?: string;
-  puesto?: string;
-  departamento?: string;
-  centroCosto?: string;
-  unidadNegocio?: string;
-  estadoCargo?: string;
-  Empleado?: any;
-}
+const API_URL = "https://mobileqa.liris.com.ec/delportal/wp-json/delportal/v1";
 
 export async function fetchOrganigramaCargo(
   filters?: { codigoEmpleado?: string; codDepAx?: string; departamento?: string }
 ): Promise<ICargoNode[]> {
   try {
     const params = new URLSearchParams();
+
     if (filters?.codigoEmpleado) params.append("codigoEmpleado", filters.codigoEmpleado);
     if (filters?.codDepAx) params.append("codDepAx", filters.codDepAx);
     if (filters?.departamento) params.append("departamento", filters.departamento);
 
-    // URL siempre debe apuntar al endpoint correcto
-    const query = params.toString();
-    const url = query
-      ? `${API_URL}/get_organigrama_cargo?${query}`
-      : `${API_URL}/get_organigrama_cargo`;
+    const url = `${API_URL}/get_organigrama_cargo?${params.toString()}`;
+    console.log("📡 Fetch Organigrama Cargo:", url);
 
-    const response = await fetch(url, {
-      method: "GET",
-      headers: { "Content-Type": "application/json" },
-    });
-
-    if (!response.ok) throw new Error(`Error al obtener organigrama cargo`);
+    const response = await fetch(url, { method: "GET", headers: { "Content-Type": "application/json" } });
+    if (!response.ok) throw new Error(`Error HTTP ${response.status} al obtener cargos`);
 
     const json = await response.json();
 
-    let cargos: ICargoRaw[] = [];
-    if (Array.isArray(json)) {
-      cargos = json;
-    } else if (json?.Organigrama?.Cargo) {
-      cargos = Array.isArray(json.Organigrama.Cargo)
-        ? json.Organigrama.Cargo
-        : [json.Organigrama.Cargo];
-    } else if (json?.Cargo) {
-      cargos = Array.isArray(json.Cargo) ? json.Cargo : [json.Cargo];
-    } else {
-      console.warn("Respuesta inesperada en organigrama cargo:", json);
+    // Analizar estructura
+    let cargosRaw: any[] = [];
+    if (Array.isArray(json)) cargosRaw = json;
+    else if (json?.Organigrama?.Cargo) cargosRaw = Array.isArray(json.Organigrama.Cargo) ? json.Organigrama.Cargo : [json.Organigrama.Cargo];
+    else if (json?.Cargo) cargosRaw = Array.isArray(json.Cargo) ? json.Cargo : [json.Cargo];
+    else {
       return [];
     }
 
-    return parseOrganigramaCargo(cargos);
+    return parseOrganigramaCargo(cargosRaw);
   } catch (error) {
-    console.error("Error en fetchOrganigramaCargo:", error);
     return [];
   }
 }
+
 
 export async function fetchOrganigramaPersona(): Promise<IEmpleadoNode[]> {
   try {
-    const response = await fetch(`${API_URL}/get_organigrama_persona`, {
-      method: "GET",
-      headers: { "Content-Type": "application/json" },
-    });
+   
 
-    if (!response.ok) throw new Error(`Error al obtener organigrama persona`);
+
+    const url = `${API_URL}/get_organigrama_persona`;
+    console.log("📡 Fetch Organigrama Persona:", url);
+
+    const response = await fetch(url, { method: "GET", headers: { "Content-Type": "application/json" } });
+    if (!response.ok) throw new Error(`Error HTTP ${response.status} al obtener personas`);
 
     const json = await response.json();
-    console.log("Respuesta organigrama persona:", json); // 👈 para debug
+    console.log("🧩 Respuesta organigrama persona:", json);
 
-    let personas: any[] = [];
-
-    if (Array.isArray(json)) {
-      // Caso: array plano
-      personas = json;
-    } else if (json?.Organigrama?.Persona) {
-      // Caso: dentro de Organigrama
-      personas = Array.isArray(json.Organigrama.Persona)
-        ? json.Organigrama.Persona
-        : [json.Organigrama.Persona];
-    } else if (json?.Persona) {
-      // Caso: sin Organigrama, pero con Persona directo
-      personas = Array.isArray(json.Persona) ? json.Persona : [json.Persona];
-    } else {
-      console.warn("Estructura inesperada en respuesta persona:", json);
+    // Normalizar estructura
+    let personasRaw: IEmpleadoRaw[] = [];
+    if (Array.isArray(json)) personasRaw = json as IEmpleadoRaw[];
+    else if (json?.Organigrama?.Persona) personasRaw = Array.isArray(json.Organigrama.Persona) ? json.Organigrama.Persona : [json.Organigrama.Persona];
+    else if (json?.Persona) personasRaw = Array.isArray(json.Persona) ? json.Persona : [json.Persona];
+    else {
+      return [];
     }
 
-    return parseOrganigramaPersona(personas);
+    return parseOrganigramaPersona(personasRaw);
   } catch (error) {
-    console.error("Error en fetchOrganigramaPersona:", error);
     return [];
   }
 }
-

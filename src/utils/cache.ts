@@ -1,30 +1,24 @@
-// utils/cache.ts
-
-export function setCache<T>(key: string, data: T, ttlMinutes: number) {
-  const now = new Date().getTime();
+export function setCache(key: string, value: any, ttlMs: number) {
   const item = {
-    data,
-    expiry: now + ttlMinutes * 60 * 1000,
+    value,
+    expiry: Date.now() + ttlMs,
   };
   localStorage.setItem(key, JSON.stringify(item));
 }
 
+// Obtiene un valor de localStorage si no ha expirado
 export function getCache<T>(key: string): T | null {
   const itemStr = localStorage.getItem(key);
   if (!itemStr) return null;
 
   try {
     const item = JSON.parse(itemStr);
-    const now = new Date().getTime();
-
-    if (now > item.expiry) {
-      localStorage.removeItem(key);
+    if (Date.now() > item.expiry) {
+      localStorage.removeItem(key); //  Expiró → lo borramos
       return null;
     }
-
-    return item.data as T;
+    return item.value as T;
   } catch {
-    localStorage.removeItem(key);
     return null;
   }
 }

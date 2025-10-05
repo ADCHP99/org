@@ -1,9 +1,1 @@
 @import "tailwindcss";
-
-.node-hidden {
-  display: none !important;
-}
-
-.link-hidden {
-  display: none !important;
-}

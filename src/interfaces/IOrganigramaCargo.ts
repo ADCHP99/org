@@ -11,8 +11,12 @@ export interface IEmpleado {
   nombreDepartamento?: string;    // Nombre del departamento
   nombreCentroCosto?: string;     // Nombre del centro de costo
   codDepAx?: string;              // Código línea de negocio (DepAx)
+  codCentroCosto?: string;   
+  codDepartamento?: string;  // Código del departamento
   nombreLineaNegocio?: string;    // Nombre de la línea de negocio
   rutaManual?: string;
+  fechaIngreso?: string;      // Fecha de ingreso a la empresa
+  userid?: string;  //  este lo devuelve el SP
 
 }
 
