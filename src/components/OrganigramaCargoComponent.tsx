@@ -99,21 +99,35 @@ const OrganigramaCargoComponent: React.FC<OrganigramaCargoProps> = ({
     carpeta
   )}&CodEmp=${codEmp || ""}&DepartMyProcessId=${depParam}`;
 }
-
 useEffect(() => {
   if (rawData && rawData.length > 0) {
     const parsed = parseOrganigramaCargo(rawData);
 
-    let visibleData: ICargoNode[] = [];
+    // ✅ Asignamos los datos reales
+    setFullData(parsed);
+    setData(parsed);
 
-    setFullData(visibleData);
-    setData(visibleData);
+    //  Poblar los filtros principales desde parsed
+    const lineas = Array.from(
+      new Set(parsed.map((n) => n.nombreLineaNegocio).filter(Boolean))
+    ).map((v) => ({ value: v, label: v }));
+    setLineaNegocioOpts(lineas);
 
-    // 🔧 aquí también si pueblas filtros (línea de negocio, depto, etc.), hazlo con visibleData
+    const centros = Array.from(
+      new Set(parsed.map((n) => n.nombreCentroCosto).filter(Boolean))
+    ).map((v) => ({ value: v, label: v }));
+    setCentroCostoOpts(centros);
+
+    const deps = Array.from(
+      new Set(parsed.map((n) => n.nombreDepartamento).filter(Boolean))
+    ).map((v) => ({ value: v, label: v }));
+    setDepartamentoOpts(deps);
   } else {
     setFullData([]);
     setData([]);
-    // limpia filtros si los usas
+    setLineaNegocioOpts([]);
+    setCentroCostoOpts([]);
+    setDepartamentoOpts([]);
   }
 }, [rawData]);
 
@@ -187,6 +201,7 @@ useEffect(() => {
         .nodeHeight(() => 100)
         .childrenMargin(() => 100)
         .compactMarginBetween(() => 30)
+        .compact(false)
         .compactMarginPair(() => 40)
         .linkUpdate((_d: any, _i: number, arr: any[]) => {
           arr.forEach((el: any) => {

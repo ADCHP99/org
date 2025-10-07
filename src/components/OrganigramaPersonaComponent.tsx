@@ -238,12 +238,14 @@ useEffect(() => {
         .childrenMargin(() => 40)
         .compactMarginBetween(() => 30)
         .compactMarginPair(() => 40)
+        .compact(false)
         .linkUpdate((_d: any, _i: number, arr: any[]) => {
           arr.forEach((el: any) => {
             el.setAttribute("stroke", "#444");
             el.setAttribute("stroke-width", "1.0");
           });
         })
+
         // NO SE TOCÓ nodeContent
         .nodeContent((d: any) => {
           const emp = d.data as IEmpleadoNode;
@@ -296,6 +298,7 @@ useEffect(() => {
     </div>
   `;
         })
+        
         .render();
 
       const handleResize = () => chartRef.current?.fit();
@@ -426,11 +429,9 @@ useEffect(() => {
                   <strong>Departamento:</strong> {selectedEmpleado.nombreDepartamento || "N/A"}
                 </p>
                 <p>
-                  <strong>Fecha de ingreso a la empreso:</strong> {selectedEmpleado.fechaIngreso || "N/A"}
+                  <strong>Fecha de ingreso a la empresa:</strong> {selectedEmpleado.fechaIngreso || "N/A"}
                 </p>
-                <p>
-                  <strong>User id:</strong> {selectedEmpleado.userid || "N/A"}
-                </p>
+                
               </div>
 
               <div className="mt-6 flex flex-nowrap gap-3 justify-center">
