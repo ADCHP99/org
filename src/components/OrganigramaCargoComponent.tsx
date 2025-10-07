@@ -1,9 +1,7 @@
 // components/OrganigramaCargoComponent.tsx
 import React, { useEffect, useRef, useState } from "react";
 import { OrgChart } from "d3-org-chart";
-import Select from "react-select";
 import type { ICargoNode, IEmpleado } from "../interfaces/IOrganigramaCargo";
-import { parseOrganigramaCargo } from "../utils/parseOrganigramaCargo";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faMagnifyingGlassPlus,
@@ -13,6 +11,7 @@ import {
   faCompress,
   faFileArrowDown,
 } from "@fortawesome/free-solid-svg-icons";
+import { parseOrganigramaCargo } from "../utils/parseOrganigramaCargo";
 
 interface OptionType {
   value: string;
@@ -63,7 +62,6 @@ const OrganigramaCargoComponent: React.FC<OrganigramaCargoProps> = ({
   viewMode,
   setViewMode,
   lineaNegocio,
-  setLineaNegocio,
   centroCosto,
   setCentroCosto,
   departamento,

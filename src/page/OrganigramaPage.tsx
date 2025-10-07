@@ -9,6 +9,9 @@ import {
   fetchOrganigramaPersona,
 } from "../services/organigramaCargoService";
 
+interface OrganigramaPageProps {
+  userId: string | null;
+}
 interface ViewOption {
   value: "cargo" | "persona";
   label: string;
@@ -24,46 +27,82 @@ const viewOptions: ViewOption[] = [
   { value: "persona", label: "Vista por Persona" },
 ];
 
-const OrganigramaPage: React.FC = () => {
-  const [viewMode, setViewMode] = useState<ViewOption | null>(viewOptions[0]);
+const OrganigramaPage: React.FC<OrganigramaPageProps> = ({ userId }) => {
+  const [viewMode, setViewMode] = useState<ViewOption | null>(viewOptions[1]);
   const [rawData, setRawData] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
 
-  // Filtros
+  const [puedeVerTodo, setPuedeVerTodo] = useState<boolean>(true);
+  const [ nodoUsuario,setNodoUsuario] = useState<any | null>(null);
   const [lineaNegocio, setLineaNegocio] = useState<FiltroOption | null>(null);
   const [centroCosto, setCentroCosto] = useState<FiltroOption | null>(null);
   const [departamento, setDepartamento] = useState<FiltroOption | null>(null);
 
-  // Opciones de filtros
   const [lineaNegocioOpts, setLineaNegocioOpts] = useState<FiltroOption[]>([]);
   const [centroCostoOpts, setCentroCostoOpts] = useState<FiltroOption[]>([]);
   const [departamentoOpts, setDepartamentoOpts] = useState<FiltroOption[]>([]);
 
   const [menuAbierto, setMenuAbierto] = useState(false);
 
-  // 🔄 Cargar datos según vista seleccionada
-  useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      try {
-        const data =
-          viewMode?.value === "cargo"
-            ? await fetchOrganigramaCargo()
-            : await fetchOrganigramaPersona();
-        setRawData(data);
-      } catch (err) {
-        console.error("Error al cargar datos del organigrama:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
+ useEffect(() => {
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const data =
+        viewMode?.value === "cargo"
+          ? await fetchOrganigramaCargo()
+          : await fetchOrganigramaPersona();
 
-    loadData();
-  }, [viewMode]);
+      setRawData(data);
+
+      if (userId && viewMode?.value === "persona") {
+        const cleanedUserId = userId.replace(/^interno\\/, "").toLowerCase();
+        const nodo = data.find(
+          (e: any) =>
+            (e.userid || "").replace(/^interno\\/, "").toLowerCase() === cleanedUserId
+        );
+
+        setNodoUsuario(nodo);
+
+        // ✅ Definir puesto
+        const puesto = (nodo?.puesto || "").toLowerCase();
+
+        // ✅ Definir codPosReporta usando type guard
+        let codPosReporta: string | null = null;
+        if (nodo && "codigoPosicionReporta" in nodo) {
+          codPosReporta = (nodo as any).codigoPosicionReporta;
+        }
+
+        const puedeVer =
+          puesto.includes("gerente") ||
+          puesto.includes("presidente") ||
+          codPosReporta === "00001" ||
+          codPosReporta === null;
+
+        setPuedeVerTodo(puedeVer);
+
+        // ✅ Si no puede ver, setear filtros automáticamente
+        if (!puedeVer) {
+          if (nodo?.nombreLineaNegocio)
+            setLineaNegocio({ value: nodo.nombreLineaNegocio, label: nodo.nombreLineaNegocio });
+          if (nodo?.nombreCentroCosto)
+            setCentroCosto({ value: nodo.nombreCentroCosto, label: nodo.nombreCentroCosto });
+          if (nodo?.nombreDepartamento)
+            setDepartamento({ value: nodo.nombreDepartamento, label: nodo.nombreDepartamento });
+        }
+      }
+    } catch (err) {
+      console.error("Error al cargar datos del organigrama:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  loadData();
+}, [viewMode, userId]);
 
   return (
     <div className="relative p-4 h-full flex flex-col">
-      {/* Overlay loader */}
       {loading && (
         <div className="absolute inset-0 z-50 bg-white bg-opacity-80 flex flex-col items-center justify-center">
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gray-900"></div>
@@ -73,9 +112,7 @@ const OrganigramaPage: React.FC = () => {
         </div>
       )}
 
-      {/* Contenido principal */}
       <div className={loading ? "pointer-events-none opacity-60" : ""}>
-        {/* Botón menú móvil */}
         <div className="sm:hidden flex justify-end mb-2 p-2">
           <button
             className="px-4 py-2 bg-blue-600 text-white rounded"
@@ -85,7 +122,6 @@ const OrganigramaPage: React.FC = () => {
           </button>
         </div>
 
-        {/* Filtros en escritorio */}
         <div className="hidden sm:flex flex-nowrap gap-2 mb-4">
           <Select
             className="sm:w-1/4 w-full"
@@ -94,6 +130,7 @@ const OrganigramaPage: React.FC = () => {
             onChange={setLineaNegocio}
             placeholder="Línea de Negocio"
             isClearable
+            isDisabled={!puedeVerTodo}
           />
           <Select
             className="sm:w-1/4 w-full"
@@ -102,7 +139,7 @@ const OrganigramaPage: React.FC = () => {
             onChange={setCentroCosto}
             placeholder="Centro de Costo"
             isClearable
-            isDisabled={!lineaNegocio}
+            isDisabled={!puedeVerTodo || !lineaNegocio}
           />
           <Select
             className="sm:w-1/4 w-full"
@@ -111,6 +148,7 @@ const OrganigramaPage: React.FC = () => {
             onChange={setDepartamento}
             placeholder="Departamento"
             isClearable
+            isDisabled={!puedeVerTodo}
           />
           <Select
             className="sm:w-1/4 w-full"
@@ -121,7 +159,6 @@ const OrganigramaPage: React.FC = () => {
           />
         </div>
 
-        {/* Menú lateral en móvil */}
         <div
           className={`fixed top-0 right-0 w-72 h-full bg-white shadow-lg z-40 transform transition-transform duration-300 ease-in-out sm:hidden ${
             menuAbierto ? "translate-x-0" : "translate-x-full"
@@ -136,6 +173,7 @@ const OrganigramaPage: React.FC = () => {
               onChange={setLineaNegocio}
               placeholder="Línea de Negocio"
               isClearable
+              isDisabled={!puedeVerTodo}
             />
             <Select
               options={centroCostoOpts}
@@ -143,6 +181,7 @@ const OrganigramaPage: React.FC = () => {
               onChange={setCentroCosto}
               placeholder="Centro de Costo"
               isClearable
+              isDisabled={!puedeVerTodo || !lineaNegocio}
             />
             <Select
               options={departamentoOpts}
@@ -150,6 +189,7 @@ const OrganigramaPage: React.FC = () => {
               onChange={setDepartamento}
               placeholder="Departamento"
               isClearable
+              isDisabled={!puedeVerTodo}
             />
             <Select
               options={viewOptions}
@@ -167,7 +207,6 @@ const OrganigramaPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Render del organigrama */}
         <div className="flex-1">
           {viewMode?.value === "cargo" ? (
             <OrganigramaCargoComponent
@@ -198,11 +237,10 @@ const OrganigramaPage: React.FC = () => {
               setLineaNegocioOpts={setLineaNegocioOpts}
               setCentroCostoOpts={setCentroCostoOpts}
               setDepartamentoOpts={setDepartamentoOpts}
+              userId={userId}
             />
           )}
         </div>
-
-       
       </div>
     </div>
   );

@@ -13,7 +13,30 @@ import {
   faFileArrowDown,
 } from "@fortawesome/free-solid-svg-icons";
 
+function puedeVerTodoOrganigrama(userId: string, data: IEmpleadoNode[]) {
+  const cleanedUserId = userId.replace(/^interno\\/, "").toLowerCase();
+
+  const persona = data.find((e) => {
+    if (e.tipo !== "persona" || !e.userid) return false;
+    return e.userid.replace(/^interno\\/, "").toLowerCase() === cleanedUserId;
+  });
+
+  if (!persona) return { puedeVerTodo: false, nodoUsuario: null };
+
+  const puesto = (persona.puesto || "").toLowerCase();
+  const puedeVerTodo =
+    puesto.includes("gerente") ||
+    puesto.includes("presidente") ||
+    persona.codigoPosicionReporta === "00001" ||
+    persona.codigoPosicionReporta === null;
+    
+  return { puedeVerTodo, nodoUsuario: persona };
+}
+
+
+
 function sanitizeHierarchy(data: IEmpleadoNode[]): IEmpleadoNode[] {
+  
   const validIds = new Set(data.map((n) => n.id));
   return data.map((n) => ({
     ...n,
@@ -49,6 +72,7 @@ interface OptionType {
 type ViewOptionType = { value: "cargo" | "persona"; label: string };
 
 interface OrganigramaPersonaProps {
+  userId: string | null;
   rawData: any[];
   viewMode: ViewOptionType | null;
   setViewMode: React.Dispatch<
@@ -76,6 +100,7 @@ function sortOptions(options: OptionType[]) {
 }
 
 const OrganigramaPersonaComponent: React.FC<OrganigramaPersonaProps> = ({
+  userId,
   rawData,
   viewMode,
   setViewMode,
@@ -99,23 +124,29 @@ const OrganigramaPersonaComponent: React.FC<OrganigramaPersonaProps> = ({
   const [fullData, setFullData] = useState<IEmpleadoNode[]>([]);
   const [data, setData] = useState<IEmpleadoNode[]>([]);
   const [selectedEmpleado, setSelectedEmpleado] = useState<IEmpleadoNode | null>(null);
-  
-  function getManualUrl(
-    codEmp?: string,
-    codDepAx?: string,
-    codCentroCosto?: string,
-    tipo?: "usuario" | "procedimientos" | "funciones"
-  ): string {
-    let carpeta = "";
-    if (tipo === "usuario") carpeta = "Manual de usuario";
-    if (tipo === "procedimientos") carpeta = "Manual de procedimientos";
-    if (tipo === "funciones") carpeta = "Manual de funciones";
+  const [puedeVerTodo, setPuedeVerTodo] = useState(false);
+  const [nodoUsuario, setNodoUsuario] = useState<IEmpleadoNode | null>(null);
 
-    return `https://soporte.liris.com.ec/rhh/UserDocsF.aspx?Carpeta=${encodeURIComponent(
-      carpeta
-    )}&CodEmp=${codEmp}&DepartMyProcessId=${codDepAx}|${codCentroCosto}`;
-  }
- 
+  function getManualUrl(
+  codEmp?: string,
+  codDepAx?: string,
+  codDepartamento?: string,
+  tipo?: "usuario" | "procedimientos" | "funciones"
+): string {
+  let carpeta = "";
+  if (tipo === "usuario") carpeta = "Manual de usuario";
+  if (tipo === "procedimientos") carpeta = "Manual de procedimientos";
+  if (tipo === "funciones") carpeta = "Manual de funciones";
+
+  const depParam =
+    codDepAx && codDepartamento
+      ? `${codDepAx}|${codDepartamento}`
+      : codDepAx || "";
+
+  return `https://soporte.liris.com.ec/rhh/UserDocsF.aspx?Carpeta=${encodeURIComponent(
+    carpeta
+  )}&CodEmp=${codEmp || ""}&DepartMyProcessId=${depParam}`;
+}
 useEffect(() => {
   if (!rawData || rawData.length === 0) {
     setFullData([]);
@@ -132,6 +163,7 @@ useEffect(() => {
 
   // 2️⃣ Guardar datos completos
   setFullData(cleaned);
+  console.log("Datos limpiados para renderizar:", cleaned);
   setData(cleaned);
 
   // 3️⃣ Poblar filtros
@@ -172,7 +204,26 @@ useEffect(() => {
   setCentroCostoOpts(sortOptions(ccs.map((cc: any) => ({ value: cc, label: cc }))));
 }, [lineaNegocio, fullData, setCentroCostoOpts]); // ✅ sin centroCosto
 
-  // 3) Poblar Departamentos en el padre (independiente de los otros filtros)
+useEffect(() => {
+  const userIdFromDOM = document.getElementById("hidUserId")?.getAttribute("value") || "";
+  const { puedeVerTodo, nodoUsuario } = puedeVerTodoOrganigrama(userIdFromDOM, fullData);
+  setPuedeVerTodo(puedeVerTodo);
+  setNodoUsuario(nodoUsuario);
+}, [fullData]);
+useEffect(() => {
+  if (!puedeVerTodo && nodoUsuario) {
+    // Setear automáticamente los filtros
+    const ln = nodoUsuario.nombreLineaNegocio;
+    const cc = nodoUsuario.nombreCentroCosto;
+    const dep = nodoUsuario.nombreDepartamento;
+
+    if (ln) setLineaNegocio({ value: ln, label: ln });
+    if (cc) setCentroCosto({ value: cc, label: cc });
+    if (dep) setDepartamento({ value: dep, label: dep });
+  }
+}, [puedeVerTodo, nodoUsuario]);
+
+// 3) Poblar Departamentos en el padre (independiente de los otros filtros)
   useEffect(() => {
     const deps = Array.from(
       new Set(fullData.map((d) => d.nombreDepartamento).filter(Boolean))
@@ -182,7 +233,7 @@ useEffect(() => {
 
   // 4) Filtrar y renderizar el organigrama (usando fullData)
   useEffect(() => {
-    if (!fullData.length) return;
+    if ( fullData.length === 0) return;
 
     const predicate = (n: IEmpleadoNode) => {
       const matchLinea = !lineaNegocio || n.nombreLineaNegocio === lineaNegocio.value;
@@ -197,11 +248,11 @@ useEffect(() => {
     setData(cleaned);
 
     if (chartRef.current) {
-      chartRef.current.data(filtered).render();
+      chartRef.current.data(cleaned).render();
     } else {
       chartRef.current = new OrgChart()
         .container(`#${containerId}`)
-        .data(filtered)
+        .data(cleaned)
         .nodeWidth(() => 320)
         .nodeHeight(() => 140)
         .childrenMargin(() => 40)
@@ -271,7 +322,7 @@ useEffect(() => {
       window.addEventListener("resize", handleResize);
       return () => window.removeEventListener("resize", handleResize);
     }
-  }, [fullData, lineaNegocio, centroCosto, departamento]);
+  }, [fullData,puedeVerTodo, lineaNegocio, centroCosto, departamento]);
 
   // Click en "Ver ficha"
   useEffect(() => {
@@ -313,8 +364,13 @@ useEffect(() => {
       URL.revokeObjectURL(url);
     }, 300);
   };
-
+  {!puedeVerTodo && data.length === 0 && (
+  <div className="p-6 text-center text-red-600 text-lg font-semibold">
+    No tienes permisos para ver el organigrama completo. Solo se mostrará tu departamento.
+  </div>
+)}
   return (
+    
     <div className="p-3">
       {/* 🔧 Botones de control */}
       <div className="flex flex-col sm:flex-row gap-2 mb-4 py-2 px-1 sm:px-0 justify-center sm:justify-end">
@@ -391,6 +447,9 @@ useEffect(() => {
                 </p>
                 <p>
                   <strong>Fecha de ingreso a la empreso:</strong> {selectedEmpleado.fechaIngreso || "N/A"}
+                </p>
+                <p>
+                  <strong>User id:</strong> {selectedEmpleado.userid || "N/A"}
                 </p>
               </div>
 

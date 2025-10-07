@@ -3,10 +3,82 @@ import type { IEmpleadoNode, IEmpleadoRaw } from "../interfaces/IOrganigramaPers
 function toStr(v: any): string {
   return v !== undefined && v !== null ? String(v).trim() : "";
 }
+function preferirUserIdValido(lista: string[]): string {
+  // Devuelve el userid con letras si existe, si no el primero numérico
+  const limpio = lista.map(toStr).filter(Boolean);
+
+  const conLetras = limpio.find((u) => /[a-zA-Z]/.test(u));
+  if (conLetras) return conLetras.toLowerCase();
+
+  const numerico = limpio.find((u) => /^[0-9]+$/.test(u));
+  if (numerico) return numerico;
+
+  return "";
+}
+
+function normalizarUserId(input: any): string {
+  const raw = toStr(input);
+  if (!raw) return "";
+
+  // Si viene con dominio (interno\algo)
+  if (raw.includes("\\")) {
+    const partes = raw.split("\\");
+    const valor = partes[1]?.trim().toLowerCase() || "";
+
+    // si el valor del dominio contiene letras, se asume login (achucuyan)
+    if (/[a-zA-Z]/.test(valor)) {
+      return valor;
+    } else {
+      // si solo tiene números, se asume que es cédula
+      return valor;
+    }
+  }
+
+  // Si no trae dominio
+  const limpio = raw.trim().toLowerCase();
+
+  // Si tiene letras → achucuyan
+  if (/[a-zA-Z]/.test(limpio)) {
+    return limpio;
+  }
+
+  // Si es solo números → cédula
+  if (/^[0-9]+$/.test(limpio)) {
+    return limpio;
+  }
+
+  // Caso raro: mezcla o vacío
+  return limpio;
+}
+
+
 
 export function parseOrganigramaPersona(json: IEmpleadoRaw[]): IEmpleadoNode[] {
   const nodos: IEmpleadoNode[] = [];
   const posToEmp: Record<string, string> = {};
+  // 🔎 Filtrar duplicados: preferir registros con userid alfanumérico (login)
+const filtrado = Object.values(
+  json.reduce((acc, item) => {
+    const codigo = toStr(item.codigoEmpleado);
+    const userid = toStr(item.userid);
+
+    // Si aún no hay registro para este empleado, lo agregamos
+    if (!acc[codigo]) {
+      acc[codigo] = item;
+    } else {
+      // Si ya existe, priorizamos el que tenga letras en el userid
+      const actual = toStr(acc[codigo].userid);
+      const nuevoTieneLetras = /[a-zA-Z]/.test(userid);
+      const actualTieneLetras = /[a-zA-Z]/.test(actual);
+
+      if (nuevoTieneLetras && !actualTieneLetras) {
+        acc[codigo] = item;
+      }
+    }
+
+    return acc;
+  }, {} as Record<string, IEmpleadoRaw>)
+);
 
   // Indexar posición → empleado (solo si tiene persona real)
   json.forEach((item) => {
@@ -95,9 +167,12 @@ export function parseOrganigramaPersona(json: IEmpleadoRaw[]): IEmpleadoNode[] {
         codigoPosicionReporta,
         vacante: true,
         rutaManual: "",
+        userid:""
       });
     } else {
       //  Nodo persona
+      console.log("📡 userid recibido:", item.userid);
+
       nodos.push({
         id: nodeId,
         parentId,
@@ -119,7 +194,8 @@ export function parseOrganigramaPersona(json: IEmpleadoRaw[]): IEmpleadoNode[] {
         codigoPosicionReporta,
         vacante: false,
         rutaManual: toStr((item as any).rutaManual || (item as any).ruta),
-        fechaIngreso: toStr(item.fechaIngreso || "")
+        fechaIngreso: toStr(item.fechaIngreso || ""),
+        userid: normalizarUserId(item.userid || "")
 
       });
     }
