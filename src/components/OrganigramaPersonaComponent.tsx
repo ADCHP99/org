@@ -13,27 +13,6 @@ import {
   faFileArrowDown,
 } from "@fortawesome/free-solid-svg-icons";
 
-function puedeVerTodoOrganigrama(userId: string, data: IEmpleadoNode[]) {
-  const cleanedUserId = userId.replace(/^interno\\/, "").toLowerCase();
-
-  const persona = data.find((e) => {
-    if (e.tipo !== "persona" || !e.userid) return false;
-    return e.userid.replace(/^interno\\/, "").toLowerCase() === cleanedUserId;
-  });
-
-  if (!persona) return { puedeVerTodo: false, nodoUsuario: null };
-
-  const puesto = (persona.puesto || "").toLowerCase();
-  const puedeVerTodo =
-    puesto.includes("gerente") ||
-    puesto.includes("presidente") ||
-    persona.codigoPosicionReporta === "00001" ||
-    persona.codigoPosicionReporta === null;
-    
-  return { puedeVerTodo, nodoUsuario: persona };
-}
-
-
 
 function sanitizeHierarchy(data: IEmpleadoNode[]): IEmpleadoNode[] {
   
@@ -91,6 +70,8 @@ interface OrganigramaPersonaProps {
   setLineaNegocioOpts: React.Dispatch<React.SetStateAction<OptionType[]>>;
   setCentroCostoOpts: React.Dispatch<React.SetStateAction<OptionType[]>>;
   setDepartamentoOpts: React.Dispatch<React.SetStateAction<OptionType[]>>;
+  puedeVerTodo: boolean;
+  nodoUsuario: IEmpleadoNode | null;
 }
 
 function sortOptions(options: OptionType[]) {
@@ -117,6 +98,10 @@ const OrganigramaPersonaComponent: React.FC<OrganigramaPersonaProps> = ({
   setLineaNegocioOpts,
   setCentroCostoOpts,
   setDepartamentoOpts,
+
+  // permisos y nodo usuario
+  puedeVerTodo,
+  nodoUsuario,
 }) => {
   const chartRef = useRef<any>(null);
   const containerId = "organigrama-persona";
@@ -124,8 +109,8 @@ const OrganigramaPersonaComponent: React.FC<OrganigramaPersonaProps> = ({
   const [fullData, setFullData] = useState<IEmpleadoNode[]>([]);
   const [data, setData] = useState<IEmpleadoNode[]>([]);
   const [selectedEmpleado, setSelectedEmpleado] = useState<IEmpleadoNode | null>(null);
-  const [puedeVerTodo, setPuedeVerTodo] = useState(false);
-  const [nodoUsuario, setNodoUsuario] = useState<IEmpleadoNode | null>(null);
+ // const [puedeVerTodo, setPuedeVerTodo] = useState(false);
+ // const [nodoUsuario, setNodoUsuario] = useState<IEmpleadoNode | null>(null);
 
   function getManualUrl(
   codEmp?: string,
@@ -204,12 +189,7 @@ useEffect(() => {
   setCentroCostoOpts(sortOptions(ccs.map((cc: any) => ({ value: cc, label: cc }))));
 }, [lineaNegocio, fullData, setCentroCostoOpts]); // ✅ sin centroCosto
 
-useEffect(() => {
-  const userIdFromDOM = document.getElementById("hidUserId")?.getAttribute("value") || "";
-  const { puedeVerTodo, nodoUsuario } = puedeVerTodoOrganigrama(userIdFromDOM, fullData);
-  setPuedeVerTodo(puedeVerTodo);
-  setNodoUsuario(nodoUsuario);
-}, [fullData]);
+
 useEffect(() => {
   if (!puedeVerTodo && nodoUsuario) {
     // Setear automáticamente los filtros

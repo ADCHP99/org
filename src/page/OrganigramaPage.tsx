@@ -76,9 +76,18 @@ const OrganigramaPage: React.FC<OrganigramaPageProps> = ({ userId }) => {
         const puedeVer =
           puesto.includes("gerente") ||
           puesto.includes("presidente") ||
+          puesto.includes("jefe") ||
+          puesto.includes("analista de procesos") ||
+          puesto.includes("asistente de desarrollo") ||
+          puesto.includes("ingeniero de desarrollo") ||
+          puesto.includes("analista") ||
+          puesto.includes("coordinador") ||
+          puesto.includes("administrador") ||
+          puesto.includes("auditor") ||
+          puesto.includes("auditor senior") ||
+          puesto.includes("supervisor") ||
           codPosReporta === "00001" ||
           codPosReporta === null;
-
         setPuedeVerTodo(puedeVer);
 
         // ✅ Si no puede ver, setear filtros automáticamente
@@ -238,6 +247,8 @@ const OrganigramaPage: React.FC<OrganigramaPageProps> = ({ userId }) => {
               setCentroCostoOpts={setCentroCostoOpts}
               setDepartamentoOpts={setDepartamentoOpts}
               userId={userId}
+               puedeVerTodo={puedeVerTodo}
+              nodoUsuario={nodoUsuario}
             />
           )}
         </div>
