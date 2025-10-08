@@ -231,6 +231,9 @@ const OrganigramaPage: React.FC<OrganigramaPageProps> = ({ userId }) => {
               setLineaNegocioOpts={setLineaNegocioOpts}
               setCentroCostoOpts={setCentroCostoOpts}
               setDepartamentoOpts={setDepartamentoOpts}
+              userId={userId}
+   puedeVerTodo={puedeVerTodo}
+   nodoUsuario={nodoUsuario}
             />
           ) : (
             <OrganigramaPersonaComponent

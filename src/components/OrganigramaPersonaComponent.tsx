@@ -13,6 +13,21 @@ import {
   faFileArrowDown,
 } from "@fortawesome/free-solid-svg-icons";
 
+const safe = (v?: string) => (v ?? "").toString().trim();
+
+function sortByParentThen<T extends { parentId: string | null }>(
+  nodes: T[],
+  cmp: (a: T, b: T) => number
+): T[] {
+  const arr = [...nodes];
+  arr.sort((a, b) => {
+    const pa = safe(a.parentId || "");
+    const pb = safe(b.parentId || "");
+    if (pa !== pb) return pa.localeCompare(pb, "en", { numeric: true });
+    return cmp(a, b);
+  });
+  return arr;
+}
 
 function sanitizeHierarchy(data: IEmpleadoNode[]): IEmpleadoNode[] {
   
@@ -211,42 +226,52 @@ useEffect(() => {
     setDepartamentoOpts(sortOptions(deps.map((dep: any) => ({ value: dep, label: dep }))));
   }, [fullData, setDepartamentoOpts]);
 
-  // 4) Filtrar y renderizar el organigrama (usando fullData)
-  useEffect(() => {
-    if ( fullData.length === 0) return;
+useEffect(() => {
+  if (fullData.length === 0) return;
 
-    const predicate = (n: IEmpleadoNode) => {
-      const matchLinea = !lineaNegocio || n.nombreLineaNegocio === lineaNegocio.value;
-      const matchCentro = !centroCosto || n.nombreCentroCosto === centroCosto.value;
-      const matchDep = !departamento || n.nombreDepartamento === departamento.value;
-      return matchLinea && matchCentro && matchDep;
-    };
-    
-    const filtered = getHierarchySubset(fullData, predicate);
-      const cleaned = sanitizeHierarchy(filtered); // ✅ Limpiar padres inexistentes
+  const predicate = (n: IEmpleadoNode) => {
+    const matchLinea = !lineaNegocio || n.nombreLineaNegocio === lineaNegocio.value;
+    const matchCentro = !centroCosto || n.nombreCentroCosto === centroCosto.value;
+    const matchDep = !departamento || n.nombreDepartamento === departamento.value;
+    return matchLinea && matchCentro && matchDep;
+  };
 
-    setData(cleaned);
+  // 1) Filtrar (igual que en cargo)
+  const filtered = getHierarchySubset(fullData, predicate);
 
-    if (chartRef.current) {
-      chartRef.current.data(cleaned).render();
-    } else {
-      chartRef.current = new OrgChart()
-        .container(`#${containerId}`)
-        .data(cleaned)
-        .nodeWidth(() => 320)
-        .nodeHeight(() => 140)
-        .childrenMargin(() => 40)
-        .compactMarginBetween(() => 30)
-        .compactMarginPair(() => 40)
-        .compact(false)
-        .linkUpdate((_d: any, _i: number, arr: any[]) => {
-          arr.forEach((el: any) => {
-            el.setAttribute("stroke", "#444");
-            el.setAttribute("stroke-width", "1.0");
-          });
-        })
+  // 2) Ordenar (igual que en cargo) — por puesto
+  filtered.sort((a, b) =>
+    safe(a.puesto).localeCompare(safe(b.puesto), "es", { sensitivity: "base" })
+  );
 
-        // NO SE TOCÓ nodeContent
+  // (Opcional) Si quieres garantizar orden por padre y luego por puesto:
+  // filtered.sort((a, b) => {
+  //   const pa = safe(a.parentId || "");
+  //   const pb = safe(b.parentId || "");
+  //   if (pa !== pb) return pa.localeCompare(pb, "en", { numeric: true });
+  //   return safe(a.puesto).localeCompare(safe(b.puesto), "es", { sensitivity: "base" });
+  // });
+
+  setData(filtered);
+
+  if (chartRef.current) {
+    chartRef.current.data(filtered).render();
+  } else {
+    chartRef.current = new OrgChart()
+      .container(`#${containerId}`)
+      .data(filtered)
+      .nodeWidth(() => 320)
+      .nodeHeight(() => 140)
+      .childrenMargin(() => 40)
+      .compactMarginBetween(() => 30)
+      .compactMarginPair(() => 40)
+      .compact(false)
+      .linkUpdate((_d: any, _i: number, arr: any[]) => {
+        arr.forEach((el: any) => {
+          el.setAttribute("stroke", "#444");
+          el.setAttribute("stroke-width", "1.0");
+        });
+      })
         .nodeContent((d: any) => {
           const emp = d.data as IEmpleadoNode;
           const isVacante = emp.tipo === "vacante";
@@ -298,14 +323,13 @@ useEffect(() => {
     </div>
   `;
         })
-        
-        .render();
+      .render();
 
-      const handleResize = () => chartRef.current?.fit();
-      window.addEventListener("resize", handleResize);
-      return () => window.removeEventListener("resize", handleResize);
-    }
-  }, [fullData,puedeVerTodo, lineaNegocio, centroCosto, departamento]);
+    const handleResize = () => chartRef.current?.fit();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }
+}, [fullData, puedeVerTodo, lineaNegocio, centroCosto, departamento]);
 
   // Click en "Ver ficha"
   useEffect(() => {

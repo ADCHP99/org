@@ -20,27 +20,31 @@ export async function fetchOrganigramaCargo(
     const url = `${API_URL}/get_organigrama_cargo?${params.toString()}`;
     console.log("📡 Fetch Organigrama Cargo:", url);
 
-    const response = await fetch(url, { method: "GET", headers: { "Content-Type": "application/json" } });
-    if (!response.ok) throw new Error(`Error HTTP ${response.status} al obtener cargos`);
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    });
 
-    const json = await response.json();
-
-    // Analizar estructura
-    let cargosRaw: any[] = [];
-    if (Array.isArray(json)) cargosRaw = json;
-    else if (json?.Organigrama?.Cargo) cargosRaw = Array.isArray(json.Organigrama.Cargo) ? json.Organigrama.Cargo : [json.Organigrama.Cargo];
-    else if (json?.Cargo) cargosRaw = Array.isArray(json.Cargo) ? json.Cargo : [json.Cargo];
-    else {
-      return [];
+    if (!response.ok) {
+      throw new Error(`Error HTTP ${response.status} al obtener cargos`);
     }
 
-    return parseOrganigramaCargo(cargosRaw);
+    // 🔹 Parsear el JSON completo tal cual lo entrega el backend
+    const json = await response.json();
+
+    console.log("🧩 JSON recibido desde API:", json);
+
+    // 🔹 Pasar el objeto completo al parser (él detecta si tiene Organigrama, Cargo, etc.)
+    const cargos = parseOrganigramaCargo(json);
+
+    console.log("✅ Cargos parseados correctamente:", cargos.length);
+
+    return cargos;
   } catch (error) {
+    console.error("❌ Error al obtener organigrama de cargos:", error);
     return [];
   }
 }
-
-
 export async function fetchOrganigramaPersona(): Promise<IEmpleadoNode[]> {
   try {
    

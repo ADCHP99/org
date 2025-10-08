@@ -35,7 +35,11 @@ interface OrganigramaCargoProps {
   setLineaNegocioOpts: React.Dispatch<React.SetStateAction<OptionType[]>>;
   setCentroCostoOpts: React.Dispatch<React.SetStateAction<OptionType[]>>;
   setDepartamentoOpts: React.Dispatch<React.SetStateAction<OptionType[]>>;
+  userId: string | null;
+  puedeVerTodo: boolean;
+  nodoUsuario: any | null;
 }
+
 
 function getHierarchySubset(
   data: ICargoNode[],
@@ -69,6 +73,10 @@ const OrganigramaCargoComponent: React.FC<OrganigramaCargoProps> = ({
   setLineaNegocioOpts,
   setCentroCostoOpts,
   setDepartamentoOpts,
+  userId,
+  puedeVerTodo,
+  nodoUsuario,
+  
 }) => {
   const chartRef = useRef<any>(null);
   const containerId = "organigrama-cargo";
@@ -101,25 +109,22 @@ const OrganigramaCargoComponent: React.FC<OrganigramaCargoProps> = ({
 }
 useEffect(() => {
   if (rawData && rawData.length > 0) {
-    const parsed = parseOrganigramaCargo(rawData);
+    // ✅ Ya viene parseado desde el servicio
+    setFullData(rawData);
+    setData(rawData);
 
-    // ✅ Asignamos los datos reales
-    setFullData(parsed);
-    setData(parsed);
-
-    //  Poblar los filtros principales desde parsed
     const lineas = Array.from(
-      new Set(parsed.map((n) => n.nombreLineaNegocio).filter(Boolean))
+      new Set(rawData.map((n) => n.nombreLineaNegocio).filter(Boolean))
     ).map((v) => ({ value: v, label: v }));
     setLineaNegocioOpts(lineas);
 
     const centros = Array.from(
-      new Set(parsed.map((n) => n.nombreCentroCosto).filter(Boolean))
+      new Set(rawData.map((n) => n.nombreCentroCosto).filter(Boolean))
     ).map((v) => ({ value: v, label: v }));
     setCentroCostoOpts(centros);
 
     const deps = Array.from(
-      new Set(parsed.map((n) => n.nombreDepartamento).filter(Boolean))
+      new Set(rawData.map((n) => n.nombreDepartamento).filter(Boolean))
     ).map((v) => ({ value: v, label: v }));
     setDepartamentoOpts(deps);
   } else {

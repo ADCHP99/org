@@ -8,7 +8,7 @@ function App() {
   useEffect(() => {
   if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
     // 🧪 Local: quemado manualmente
-    setUserId("jvmartinez"); // <-- cámbialo por el usuario que quieras probar
+    setUserId("drendon"); // <-- cámbialo por el usuario que quieras probar
     //console.log("🧪 UserId quemado:", "krosado");
   } else {
     //  Producción: espera mensaje desde el iframe (ASPX)
