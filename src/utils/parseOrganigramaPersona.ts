@@ -3,16 +3,14 @@ import type { IEmpleadoNode, IEmpleadoRaw } from "../interfaces/IOrganigramaPers
 function toStr(v: any): string {
   return v !== undefined && v !== null ? String(v).trim() : "";
 }
+
 function preferirUserIdValido(lista: string[]): string {
   // Devuelve el userid con letras si existe, si no el primero numérico
   const limpio = lista.map(toStr).filter(Boolean);
-
   const conLetras = limpio.find((u) => /[a-zA-Z]/.test(u));
   if (conLetras) return conLetras.toLowerCase();
-
   const numerico = limpio.find((u) => /^[0-9]+$/.test(u));
   if (numerico) return numerico;
-
   return "";
 }
 
@@ -51,34 +49,31 @@ function normalizarUserId(input: any): string {
   return limpio;
 }
 
-
-
 export function parseOrganigramaPersona(json: IEmpleadoRaw[]): IEmpleadoNode[] {
   const nodos: IEmpleadoNode[] = [];
   const posToEmp: Record<string, string> = {};
+
   // 🔎 Filtrar duplicados: preferir registros con userid alfanumérico (login)
-const filtrado = Object.values(
-  json.reduce((acc, item) => {
-    const codigo = toStr(item.codigoEmpleado);
-    const userid = toStr(item.userid);
+  const filtrado = Object.values(
+    json.reduce((acc, item) => {
+      const codigo = toStr(item.codigoEmpleado);
+      const userid = toStr(item.userid);
 
-    // Si aún no hay registro para este empleado, lo agregamos
-    if (!acc[codigo]) {
-      acc[codigo] = item;
-    } else {
-      // Si ya existe, priorizamos el que tenga letras en el userid
-      const actual = toStr(acc[codigo].userid);
-      const nuevoTieneLetras = /[a-zA-Z]/.test(userid);
-      const actualTieneLetras = /[a-zA-Z]/.test(actual);
-
-      if (nuevoTieneLetras && !actualTieneLetras) {
+      if (!acc[codigo]) {
         acc[codigo] = item;
-      }
-    }
+      } else {
+        const actual = toStr(acc[codigo].userid);
+        const nuevoTieneLetras = /[a-zA-Z]/.test(userid);
+        const actualTieneLetras = /[a-zA-Z]/.test(actual);
 
-    return acc;
-  }, {} as Record<string, IEmpleadoRaw>)
-);
+        if (nuevoTieneLetras && !actualTieneLetras) {
+          acc[codigo] = item;
+        }
+      }
+
+      return acc;
+    }, {} as Record<string, IEmpleadoRaw>)
+  );
 
   // Indexar posición → empleado (solo si tiene persona real)
   json.forEach((item) => {
@@ -89,17 +84,15 @@ const filtrado = Object.values(
     }
   });
 
-//  const presidenteId = posToEmp["00001"] ? `E-${posToEmp["00001"]}` : null;
-
+  // Recorrer y construir nodos
   json.forEach((item) => {
     const codigoPosicion = toStr(item.codigoPosicion || (item as any).CodigoPosicion);
-    let codigoPosicionReporta = toStr(item.codigoPosicionReporta || (item as any).CodigoPosicionReporta);
+    let codigoPosicionReporta = toStr(
+      item.codigoPosicionReporta || (item as any).CodigoPosicionReporta
+    );
 
-    //  Validación: si no hay posición, ignoramos este nodo
-    if (!codigoPosicion) {
-      //console.warn("⚠️ Nodo ignorado por no tener codigoPosicion:", item);
-      return;
-    }
+    //  Ignorar nodos sin posición
+    if (!codigoPosicion) return;
 
     // ⚠️ Ignorar directorio (00006) excepto presidente
     if (codigoPosicion === "00006") return;
@@ -133,24 +126,19 @@ const filtrado = Object.values(
     const esVacante = item.vacante === "1" || !toStr(item.codigoEmpleado);
 
     const nodeId = esVacante
-      ? `P-${codigoPosicion}` // nodo de posición vacante
+      ? `P-${codigoPosicion}`
       : `E-${toStr(item.codigoEmpleado)}`;
 
     // Evitar ciclos
-    if (parentId === nodeId) {
-      //console.warn("⚠️ Ciclo detectado, se fuerza root:", nodeId);
-      parentId = null;
-    }
+    if (parentId === nodeId) parentId = null;
 
     if (esVacante) {
-      if(!toStr(item.puesto)){
-        return
-      }
-      // 🔎 Nodo vacante
+      if (!toStr(item.puesto)) return;
+
       nodos.push({
         id: nodeId,
         parentId,
-        tipo: "vacante", // ⚠️ recuerda que en la interfaz debes permitir "vacante"
+        tipo: "vacante",
         codigoEmpleado: "",
         nombre: "VACANTE",
         apellido: "",
@@ -167,12 +155,9 @@ const filtrado = Object.values(
         codigoPosicionReporta,
         vacante: true,
         rutaManual: "",
-        userid:""
+        userid: ""
       });
     } else {
-      //  Nodo persona
-      console.log("📡 userid recibido:", item.userid);
-
       nodos.push({
         id: nodeId,
         parentId,
@@ -186,7 +171,6 @@ const filtrado = Object.values(
         unidadNegocio: toStr(item.unidadNegocio),
         nombreDepartamento: toStr(item.nombreDepartamento),
         nombreCentroCosto: toStr(item.nombreCentroCosto),
-        
         nombreLineaNegocio: toStr(item.nombreLineaNegocio),
         emailCorporativo: toStr(item.emailCorporativo),
         foto: toStr(item.foto),
@@ -196,29 +180,35 @@ const filtrado = Object.values(
         rutaManual: toStr((item as any).rutaManual || (item as any).ruta),
         fechaIngreso: toStr(item.fechaIngreso || ""),
         userid: normalizarUserId(item.userid || "")
-
       });
     }
   });
 
-  //  Depuración: múltiples raíces
-  const roots = nodos.filter((n) => n.parentId === null);
+  // 🔹 Limpieza final: eliminar raíces múltiples (dejar solo el presidente)
+  let roots = nodos.filter((n) => n.parentId === null);
+
   if (roots.length > 1) {
-    //console.group(" Múltiples raíces detectadas en organigrama");
-    roots.forEach((r) => {
-      
-    });
-  //  console.groupEnd();
+    const presidente = nodos.find((n) => n.codigoPosicion === "00001");
+    const rootId = presidente ? presidente.id : roots[0].id;
+
+    console.warn(`⚠️ Se detectaron ${roots.length} raíces. Se mantendrá solo ${rootId}`);
+
+    // Eliminar todos los demás roots (huérfanos)
+    const nodosFiltrados = nodos.filter(
+      (n) => n.parentId !== null || n.id === rootId
+    );
+
+    nodos.splice(0, nodos.length, ...nodosFiltrados);
   }
 
-  // 🔎 Depuración: IDs duplicados
+  // 🔎 Validar IDs duplicados (opcional)
   const ids = new Set<string>();
   nodos.forEach((n) => {
     if (ids.has(n.id)) {
-    //  console.error("⚠️ Duplicado detectado:", n);
+      console.warn("⚠️ Duplicado detectado y omitido:", n.id);
     }
     ids.add(n.id);
   });
-  
+
   return nodos;
 }

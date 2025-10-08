@@ -26,8 +26,7 @@ export function parseOrganigramaCargo(json: any): ICargoNode[] {
   const cargosMap = new Map<string, { base: any; empleados: IEmpleado[] }>();
 
   for (const item of cargosRaw) {
-    // 🔹 Aceptar campo en mayúsculas o minúsculas
-    const codPos = toStr(item.codigoPosicion || item.COD_POSICION);
+    const codPos = toStr(item.codigoPosicion || item.COD_POSICION || item.Cod_Posicion);
     if (!codPos) continue;
 
     if (!cargosMap.has(codPos)) {
@@ -37,7 +36,7 @@ export function parseOrganigramaCargo(json: any): ICargoNode[] {
 
     const empleadosArr: IEmpleado[] = [];
 
-    // 🔹 Normalizar Empleado (objeto o array)
+    // 🔹 Normalizar Empleado (puede venir como objeto o array)
     const empleadosRaw = Array.isArray(item.Empleado)
       ? item.Empleado
       : item.Empleado
@@ -47,9 +46,12 @@ export function parseOrganigramaCargo(json: any): ICargoNode[] {
     for (const emp of empleadosRaw) {
       if (!emp) continue;
 
-      // Aceptar código de posición en distintos nombres
+      // ✅ Corregido: reconocer código de posición y usar el del cargo si no viene
       const empCodPos =
-        toStr(emp.codigoPosicion) || toStr(emp.COD_POSICION) || codPos;
+        toStr(emp.codigoPosicion) ||
+        toStr(emp.COD_POSICION) ||
+        toStr(emp.Cod_Posicion) ||
+        codPos;
 
       empleadosArr.push({
         codigoEmpleado: toStr(emp.codigoEmpleado || emp.CODIGO),
@@ -67,14 +69,17 @@ export function parseOrganigramaCargo(json: any): ICargoNode[] {
         rutaManual: toStr(emp.manual || emp.rutaManual || emp.ruta),
         fechaIngreso: toStr(emp.fechaIngreso || emp.InicioContrato),
         userid: toStr(emp.userid),
-        codigoPosicion: empCodPos,
+        codigoPosicion: empCodPos, // ✅ ahora siempre tiene valor
       });
     }
 
     // 🔹 Asociar empleados que pertenecen al mismo cargo
     for (const emp of empleadosArr) {
+      // ⚙️ Si el empleado no trae códigoPosición explícito, usar el del cargo actual
+      const empPos = emp.codigoPosicion || codPos;
+
       if (
-        emp.codigoPosicion === codPos &&
+        empPos === codPos &&
         !group.empleados.some((e) => e.codigoEmpleado === emp.codigoEmpleado)
       ) {
         group.empleados.push(emp);
@@ -86,9 +91,7 @@ export function parseOrganigramaCargo(json: any): ICargoNode[] {
   const nodos: ICargoNode[] = [];
 
   for (const [codigoPosicion, { base, empleados }] of cargosMap.entries()) {
-    // Solo marcar vacante si realmente no hay empleados
     const isVacante = empleados.length === 0;
-
     const puesto = toStr(base.puesto || base.DESCRIPCION);
     if (!puesto) continue;
 
@@ -127,6 +130,6 @@ export function parseOrganigramaCargo(json: any): ICargoNode[] {
     });
   }
 
-  console.log("✅ Cargo parseado:", nodos);
+  console.log("✅ Cargos parseados correctamente:", nodos.length);
   return nodos;
 }

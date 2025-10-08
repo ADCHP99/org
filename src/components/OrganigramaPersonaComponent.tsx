@@ -229,6 +229,7 @@ useEffect(() => {
 useEffect(() => {
   if (fullData.length === 0) return;
 
+  // 🔍 Filtrar según los selectores activos
   const predicate = (n: IEmpleadoNode) => {
     const matchLinea = !lineaNegocio || n.nombreLineaNegocio === lineaNegocio.value;
     const matchCentro = !centroCosto || n.nombreCentroCosto === centroCosto.value;
@@ -236,27 +237,46 @@ useEffect(() => {
     return matchLinea && matchCentro && matchDep;
   };
 
-  // 1) Filtrar (igual que en cargo)
-  const filtered = getHierarchySubset(fullData, predicate);
+  // 1️⃣ Obtener subconjunto jerárquico
+  let filtered = getHierarchySubset(fullData, predicate);
 
-  // 2) Ordenar (igual que en cargo) — por puesto
+  // 2️⃣ Eliminar nodos huérfanos sin padre válido
+  const validIds = new Set(filtered.map((n) => n.id));
+  filtered = filtered.filter(
+    (n) => !n.parentId || validIds.has(n.parentId)
+  );
+
+  // 3️⃣ Asegurar que solo haya un root
+  const roots = filtered.filter((n) => !n.parentId);
+  if (roots.length > 1) {
+    const presidente = filtered.find((n) => n.codigoPosicion === "00001");
+    const rootId = presidente ? presidente.id : roots[0].id;
+
+    console.warn(`⚠️ ${roots.length} raíces detectadas → se mantendrá solo ${rootId}`);
+
+    filtered = filtered.filter(
+      (n) => n.parentId !== null || n.id === rootId
+    );
+  }
+
+  // 4️⃣ Ordenar por puesto (opcional: luego por parentId)
   filtered.sort((a, b) =>
     safe(a.puesto).localeCompare(safe(b.puesto), "es", { sensitivity: "base" })
   );
 
-  // (Opcional) Si quieres garantizar orden por padre y luego por puesto:
-  // filtered.sort((a, b) => {
-  //   const pa = safe(a.parentId || "");
-  //   const pb = safe(b.parentId || "");
-  //   if (pa !== pb) return pa.localeCompare(pb, "en", { numeric: true });
-  //   return safe(a.puesto).localeCompare(safe(b.puesto), "es", { sensitivity: "base" });
-  // });
-
   setData(filtered);
 
+  // 5️⃣ Renderizado seguro
+  if (!filtered || filtered.length === 0) {
+    console.warn("⚠️ No hay datos válidos para renderizar el organigrama.");
+    return;
+  }
+
   if (chartRef.current) {
-    chartRef.current.data(filtered).render();
+    // 🔁 Actualizar datos existentes
+    chartRef.current.data(filtered).render().fit();
   } else {
+    // 🆕 Crear gráfico por primera vez
     chartRef.current = new OrgChart()
       .container(`#${containerId}`)
       .data(filtered)
@@ -272,59 +292,59 @@ useEffect(() => {
           el.setAttribute("stroke-width", "1.0");
         });
       })
-        .nodeContent((d: any) => {
-          const emp = d.data as IEmpleadoNode;
-          const isVacante = emp.tipo === "vacante";
-          const manualBtns = emp.rutaManual ? `` : "";
+      .nodeContent((d: any) => {
+        const emp = d.data as IEmpleadoNode;
+        const isVacante = emp.tipo === "vacante";
 
-          return `
-    <div style="padding:10px; border-radius:10px; background:${isVacante ? "#f9f9f9" : "#fff"};
-                box-shadow:0 2px 6px rgba(0,0,0,0.15);
-                text-align:center; display:flex; flex-direction:column; align-items:center;">
-      ${isVacante
-              ? `
-            <div style="width:50px; height:50px; border-radius:50%; margin-bottom:6px;
-                        background:#e5e7eb; display:flex; align-items:center; justify-content:center;">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="#9ca3af" viewBox="0 0 24 24" width="32" height="32">
-                <path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 
-                         2.3-5 5 2.3 5 5 5zm0 2c-3.3 
-                         0-10 1.7-10 5v3h20v-3c0-3.3-6.7-5-10-5z"/>
-              </svg>
-            </div>`
-              : emp.foto
+        return `
+          <div style="padding:10px; border-radius:10px; background:${isVacante ? "#f9f9f9" : "#fff"};
+                      box-shadow:0 2px 6px rgba(0,0,0,0.15);
+                      text-align:center; display:flex; flex-direction:column; align-items:center;">
+            ${
+              isVacante
+                ? `<div style="width:50px; height:50px; border-radius:50%; margin-bottom:6px;
+                             background:#e5e7eb; display:flex; align-items:center; justify-content:center;">
+                     <svg xmlns="http://www.w3.org/2000/svg" fill="#9ca3af" viewBox="0 0 24 24" width="32" height="32">
+                       <path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 
+                                2.3-5 5 2.3 5 5 5zm0 2c-3.3 
+                                0-10 1.7-10 5v3h20v-3c0-3.3-6.7-5-10-5z"/>
+                     </svg>
+                   </div>`
+                : emp.foto
                 ? `<img src="${emp.foto}" alt="Foto"
-                   style="width:50px; height:50px; border-radius:50%; margin-bottom:6px;" />`
-                : `
-            <div style="width:50px; height:50px; border-radius:50%; margin-bottom:6px;
-                        background:#e5e7eb; display:flex; align-items:center; justify-content:center;">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="#9ca3af" viewBox="0 0 24 24" width="32" height="32">
-                <path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 
-                         2.3-5 5 2.3 5 5 5zm0 2c-3.3 
-                         0-10 1.7-10 5v3h20v-3c0-3.3-6.7-5-10-5z"/>
-              </svg>
-            </div>`
+                         style="width:50px; height:50px; border-radius:50%; margin-bottom:6px;" />`
+                : `<div style="width:50px; height:50px; border-radius:50%; margin-bottom:6px;
+                              background:#e5e7eb; display:flex; align-items:center; justify-content:center;">
+                     <svg xmlns="http://www.w3.org/2000/svg" fill="#9ca3af" viewBox="0 0 24 24" width="32" height="32">
+                       <path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 
+                                2.3-5 5 2.3 5 5 5zm0 2c-3.3 
+                                0-10 1.7-10 5v3h20v-3c0-3.3-6.7-5-10-5z"/>
+                     </svg>
+                   </div>`
             }
-      <div style="font-weight:bold; font-size:14px; color:#333; margin-bottom:4px;">
-        ${isVacante ? "VACANTE" : `${emp.nombre} ${emp.apellido}`}
-      </div>
-      <div style="font-size:12px; color:#666; margin-bottom:6px;">
-        ${emp.puesto || ""}
-      </div>
-      ${isVacante
-              ? ""
-              : `<button class="btn-ver-persona" data-id="${emp.id}"
-                     style="padding:4px 8px; border-radius:6px;
-                            background:#007bff; color:#fff; border:none;
-                            cursor:pointer; font-size:12px;">
-              Ver ficha
-            </button>
-            ${manualBtns}`
+            <div style="font-weight:bold; font-size:14px; color:#333; margin-bottom:4px;">
+              ${isVacante ? "VACANTE" : `${emp.nombre} ${emp.apellido}`}
+            </div>
+            <div style="font-size:12px; color:#666; margin-bottom:6px;">
+              ${emp.puesto || ""}
+            </div>
+            ${
+              isVacante
+                ? ""
+                : `<button class="btn-ver-persona" data-id="${emp.id}"
+                           style="padding:4px 8px; border-radius:6px;
+                                  background:#007bff; color:#fff; border:none;
+                                  cursor:pointer; font-size:12px;">
+                    Ver ficha
+                  </button>`
             }
-    </div>
-  `;
-        })
-      .render();
+          </div>
+        `;
+      })
+      .render()
+      .fit();
 
+    // ✅ Autoajuste al redimensionar
     const handleResize = () => chartRef.current?.fit();
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);

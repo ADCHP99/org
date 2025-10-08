@@ -114,18 +114,18 @@ useEffect(() => {
     setData(rawData);
 
     const lineas = Array.from(
-      new Set(rawData.map((n) => n.nombreLineaNegocio).filter(Boolean))
-    ).map((v) => ({ value: v, label: v }));
+      new Set(rawData.map((n:any) => n.nombreLineaNegocio).filter(Boolean))
+    ).map((v) => ({ value: String(v), label: String(v) }));
     setLineaNegocioOpts(lineas);
 
     const centros = Array.from(
-      new Set(rawData.map((n) => n.nombreCentroCosto).filter(Boolean))
-    ).map((v) => ({ value: v, label: v }));
+      new Set(rawData.map((n:any) => n.nombreCentroCosto).filter(Boolean))
+    ).map((v) => ({ value: String(v), label: String(v) }));
     setCentroCostoOpts(centros);
 
     const deps = Array.from(
-      new Set(rawData.map((n) => n.nombreDepartamento).filter(Boolean))
-    ).map((v) => ({ value: v, label: v }));
+      new Set(rawData.map((n:any) => n.nombreDepartamento).filter(Boolean))
+    ).map((v) => ({ value: String(v), label: String(v) }));
     setDepartamentoOpts(deps);
   } else {
     setFullData([]);
@@ -183,70 +183,90 @@ useEffect(() => {
     return () => document.removeEventListener("click", handler);
   }, [data]);
 
-  useEffect(() => {
-    if (!rawData || rawData.length === 0) return;
+useEffect(() => {
+  if (!rawData || rawData.length === 0) return;
 
-    const predicate = (n: ICargoNode) => {
-      const matchLinea = !lineaNegocio || n.nombreLineaNegocio === lineaNegocio.value;
-      const matchCentro = !centroCosto || n.nombreCentroCosto === centroCosto.value;
-      const matchDep = !departamento || n.nombreDepartamento === departamento.value;
-      return matchLinea && matchCentro && matchDep;
-    };
+  const predicate = (n: ICargoNode) => {
+    const matchLinea = !lineaNegocio || n.nombreLineaNegocio === lineaNegocio.value;
+    const matchCentro = !centroCosto || n.nombreCentroCosto === centroCosto.value;
+    const matchDep = !departamento || n.nombreDepartamento === departamento.value;
+    return matchLinea && matchCentro && matchDep;
+  };
 
-    const filtered = getHierarchySubset(rawData, predicate);
-    setData(filtered);
+  let filtered = getHierarchySubset(rawData, predicate);
 
-    if (chartRef.current) {
-      chartRef.current.data(filtered).render();
-    } else {
-      chartRef.current = new OrgChart()
-        .container(`#${containerId}`)
-        .data(filtered)
-        .nodeWidth(() => 220)
-        .nodeHeight(() => 100)
-        .childrenMargin(() => 100)
-        .compactMarginBetween(() => 30)
-        .compact(false)
-        .compactMarginPair(() => 40)
-        .linkUpdate((_d: any, _i: number, arr: any[]) => {
-          arr.forEach((el: any) => {
-            el.setAttribute("stroke", "#444");
-            el.setAttribute("stroke-width", "1.0");
-          });
-        })
-        .nodeContent((d: any) => {
-          const empleados = d.data.empleados || [];
-          return `
-            <div style="padding:10px; border-radius:10px; background:#fff;
-                        box-shadow:0 2px 6px rgba(0,0,0,0.15);
-                        text-align:center; display:flex;
-                        flex-direction:column; align-items:center; gap:6px;">
-              <div style="font-weight:bold; font-size:14px; color:#333;">
-                ${d.data.puesto || "(Sin puesto)"}
-              </div>
-              ${
-                empleados.length > 0
-                  ? `<button class="btn-ver-ficha"
-                         data-id="${d.data.id}"
-                         style="padding:6px 12px; border-radius:6px;
-                                background:#007bff; color:#fff; border:none;
-                                cursor:pointer; font-size:12px;">
-                   Ver ficha
-                 </button>`
-                  : `<div style="font-size:12px; color:#999;">Vacante</div>`
-              }
+  // 🔹 1️⃣ Eliminar nodos cuyo parentId no existe
+  const ids = new Set(filtered.map((n) => n.id));
+  filtered = filtered.filter((n) => !n.parentId || ids.has(n.parentId));
+
+  // 🔹 2️⃣ Si hay múltiples raíces, conservar solo una (ej. la del presidente o root principal)
+  const roots = filtered.filter((n) => !n.parentId);
+  if (roots.length > 1) {
+    console.warn(`⚠️ Se detectaron ${roots.length} raíces en cargo`);
+    const rootId = roots[0].id; // o busca el que tenga codigoPosicion === '00001'
+    filtered = filtered.filter((n) => n.parentId !== null || n.id === rootId);
+  }
+
+  // 🔹 3️⃣ Evitar render vacío
+  if (filtered.length === 0) {
+    console.warn("⚠️ No hay datos válidos después del filtrado");
+    setData([]);
+    return;
+  }
+
+  setData(filtered);
+
+  // 🔹 4️⃣ Render seguro
+  if (chartRef.current) {
+    chartRef.current.data(filtered).render().fit();
+  } else {
+    chartRef.current = new OrgChart()
+      .container(`#${containerId}`)
+      .data(filtered)
+      .nodeWidth(() => 220)
+      .nodeHeight(() => 100)
+      .childrenMargin(() => 100)
+      .compactMarginBetween(() => 30)
+      .compact(false)
+      .compactMarginPair(() => 40)
+      .linkUpdate((_d: any, _i: number, arr: any[]) => {
+        arr.forEach((el: any) => {
+          el.setAttribute("stroke", "#444");
+          el.setAttribute("stroke-width", "1.0");
+        });
+      })
+      .nodeContent((d: any) => {
+        const empleados = d.data.empleados || [];
+        return `
+          <div style="padding:10px; border-radius:10px; background:#fff;
+                      box-shadow:0 2px 6px rgba(0,0,0,0.15);
+                      text-align:center; display:flex;
+                      flex-direction:column; align-items:center; gap:6px;">
+            <div style="font-weight:bold; font-size:14px; color:#333;">
+              ${d.data.puesto || "(Sin puesto)"}
             </div>
-          `;
-        })
-        .render();
-    }
+            ${
+              empleados.length > 0
+                ? `<button class="btn-ver-ficha"
+                           data-id="${d.data.id}"
+                           style="padding:6px 12px; border-radius:6px;
+                                  background:#007bff; color:#fff; border:none;
+                                  cursor:pointer; font-size:12px;">
+                     Ver ficha
+                   </button>`
+                : `<div style="font-size:12px; color:#999;">Vacante</div>`
+            }
+          </div>
+        `;
+      })
+      .render()
+      .fit();
+  }
 
-    const handleResize = () => {
-      chartRef.current?.fit();
-    };
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, [rawData, lineaNegocio, centroCosto, departamento]);
+  const handleResize = () => chartRef.current?.fit();
+  window.addEventListener("resize", handleResize);
+  return () => window.removeEventListener("resize", handleResize);
+}, [rawData, lineaNegocio, centroCosto, departamento]);
 
   const zoomIn = () => chartRef.current?.zoomIn();
   const zoomOut = () => chartRef.current?.zoomOut();

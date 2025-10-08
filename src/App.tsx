@@ -8,7 +8,7 @@ function App() {
   useEffect(() => {
   if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
     // 🧪 Local: quemado manualmente
-    setUserId("drendon"); // <-- cámbialo por el usuario que quieras probar
+    setUserId("cproano"); // <-- cámbialo por el usuario que quieras probar
     //console.log("🧪 UserId quemado:", "krosado");
   } else {
     //  Producción: espera mensaje desde el iframe (ASPX)
@@ -31,11 +31,7 @@ function App() {
 
   return (
      <div className="App">
-      {userId && (
-  <div className="text-sm text-gray-500">
-    Usuario logueado: <strong>{userId}</strong>
-  </div>
-)}
+    
       <OrganigramaPage userId={userId} />
     </div>
   )
