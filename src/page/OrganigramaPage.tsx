@@ -64,10 +64,10 @@ const OrganigramaPage: React.FC<OrganigramaPageProps> = ({ userId }) => {
 
         setNodoUsuario(nodo);
 
-        // ✅ Definir puesto
+        //  Definir puesto
         const puesto = (nodo?.puesto || "").toLowerCase();
 
-        // ✅ Definir codPosReporta usando type guard
+        //  Definir codPosReporta usando type guard
         let codPosReporta: string | null = null;
         if (nodo && "codigoPosicionReporta" in nodo) {
           codPosReporta = (nodo as any).codigoPosicionReporta;
@@ -90,7 +90,7 @@ const OrganigramaPage: React.FC<OrganigramaPageProps> = ({ userId }) => {
           codPosReporta === null;
         setPuedeVerTodo(puedeVer);
 
-        // ✅ Si no puede ver, setear filtros automáticamente
+        // Si no puede ver, setear filtros automáticamente
         if (!puedeVer) {
           if (nodo?.nombreLineaNegocio)
             setLineaNegocio({ value: nodo.nombreLineaNegocio, label: nodo.nombreLineaNegocio });
