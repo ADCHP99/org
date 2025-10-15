@@ -41,6 +41,6 @@ export interface ICargoNode {
 
   descripcionCargo?: string;      // Descripción larga del cargo
   esVacante?: boolean;            // <- SP devuelve 1/0 si no hay empleados
-
+  nivelJerarquico?: number;
   empleados: IEmpleado[];         // Lista de empleados asignados al cargo
 }

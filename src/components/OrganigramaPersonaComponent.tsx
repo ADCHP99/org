@@ -252,7 +252,6 @@ useEffect(() => {
     const presidente = filtered.find((n) => n.codigoPosicion === "00001");
     const rootId = presidente ? presidente.id : roots[0].id;
 
-    console.warn(`⚠️ ${roots.length} raíces detectadas → se mantendrá solo ${rootId}`);
 
     filtered = filtered.filter(
       (n) => n.parentId !== null || n.id === rootId
@@ -265,6 +264,22 @@ useEffect(() => {
   );
 
   setData(filtered);
+    //  Ordenar por nivel jerárquico
+  filtered.sort((a, b) => (a.nivelJerarquico ?? 99) - (b.nivelJerarquico ?? 99));
+  setData(filtered);
+
+  if (!filtered || filtered.length === 0) {
+    console.warn("No hay datos válidos para renderizar el organigrama.");
+    return;
+  }
+
+  function getOffsetByNivel(nivel?: number): number {
+    if (!nivel || nivel === 99) return 0; // sin jerarquía conocida
+    const baseNivel = 3; // nivel más alto
+    const factor = 60;   // separación visual entre subniveles
+    const offset = (nivel - baseNivel) * factor;
+    return offset > 0 ? offset : 0;
+  }
 
   // 5️⃣ Renderizado seguro
   if (!filtered || filtered.length === 0) {
@@ -281,23 +296,50 @@ useEffect(() => {
       .container(`#${containerId}`)
       .data(filtered)
       .nodeWidth(() => 320)
-      .nodeHeight(() => 140)
-      .childrenMargin(() => 40)
-      .compactMarginBetween(() => 30)
-      .compactMarginPair(() => 40)
+      .nodeHeight(() => 180)
+      .childrenMargin(() => 130)
+      .compactMarginBetween(() => 40)
+      .compactMarginPair(() => 110)
       .compact(false)
+
       .linkUpdate((_d: any, _i: number, arr: any[]) => {
-        arr.forEach((el: any) => {
-          el.setAttribute("stroke", "#444");
-          el.setAttribute("stroke-width", "1.0");
-        });
-      })
+  arr.forEach((el: any) => {
+    el.setAttribute("stroke", "#444");
+    el.setAttribute("stroke-width", "1.2");
+    el.setAttribute("fill", "none");
+
+    const d = el.__data__;
+    if (!d || !d.source || !d.target) return;
+
+    const targetNode = d.target.data;
+    const nodoAltura = 180; // misma altura que nodeHeight()
+    const mitadNodo = nodoAltura / 2;
+
+    const offsetY = getOffsetByNivel(targetNode?.nivelJerarquico);
+    const parentY = d.source.y + mitadNodo; // salida desde centro del nodo padre
+    const childY = d.target.y + offsetY + mitadNodo; // llegada al centro del nodo hijo
+
+    const diffY = Math.abs(childY - parentY);
+    const curveStrength = Math.max(30, diffY * 0.35);
+
+    const newPath = `
+      M ${d.source.x},${parentY}
+      C ${d.source.x},${parentY + curveStrength}
+        ${d.target.x},${childY - curveStrength}
+        ${d.target.x},${childY}
+    `;
+    el.setAttribute("d", newPath);
+  });
+})
+
       .nodeContent((d: any) => {
         const emp = d.data as IEmpleadoNode;
         const isVacante = emp.tipo === "vacante";
+                const offsetY = getOffsetByNivel(emp.nivelJerarquico);
 
         return `
-          <div style="padding:10px; border-radius:10px; background:${isVacante ? "#f9f9f9" : "#fff"};
+          <div style=" position: relative;
+            top: ${offsetY}px;padding:10px; border-radius:10px; background:${isVacante ? "#f9f9f9" : "#fff"};
                       box-shadow:0 2px 6px rgba(0,0,0,0.15);
                       text-align:center; display:flex; flex-direction:column; align-items:center;">
             ${
