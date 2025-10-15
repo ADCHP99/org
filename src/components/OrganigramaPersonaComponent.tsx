@@ -30,7 +30,7 @@ function sortByParentThen<T extends { parentId: string | null }>(
 }
 
 function sanitizeHierarchy(data: IEmpleadoNode[]): IEmpleadoNode[] {
-
+  
   const validIds = new Set(data.map((n) => n.id));
   return data.map((n) => ({
     ...n,
@@ -124,101 +124,101 @@ const OrganigramaPersonaComponent: React.FC<OrganigramaPersonaProps> = ({
   const [fullData, setFullData] = useState<IEmpleadoNode[]>([]);
   const [data, setData] = useState<IEmpleadoNode[]>([]);
   const [selectedEmpleado, setSelectedEmpleado] = useState<IEmpleadoNode | null>(null);
-  // const [puedeVerTodo, setPuedeVerTodo] = useState(false);
-  // const [nodoUsuario, setNodoUsuario] = useState<IEmpleadoNode | null>(null);
+ // const [puedeVerTodo, setPuedeVerTodo] = useState(false);
+ // const [nodoUsuario, setNodoUsuario] = useState<IEmpleadoNode | null>(null);
 
   function getManualUrl(
-    codEmp?: string,
-    codDepAx?: string,
-    codDepartamento?: string,
-    tipo?: "usuario" | "procedimientos" | "funciones"
-  ): string {
-    let carpeta = "";
-    if (tipo === "usuario") carpeta = "Manual de usuario";
-    if (tipo === "procedimientos") carpeta = "Manual de procedimientos";
-    if (tipo === "funciones") carpeta = "Manual de funciones";
+  codEmp?: string,
+  codDepAx?: string,
+  codDepartamento?: string,
+  tipo?: "usuario" | "procedimientos" | "funciones"
+): string {
+  let carpeta = "";
+  if (tipo === "usuario") carpeta = "Manual de usuario";
+  if (tipo === "procedimientos") carpeta = "Manual de procedimientos";
+  if (tipo === "funciones") carpeta = "Manual de funciones";
 
-    const depParam =
-      codDepAx && codDepartamento
-        ? `${codDepAx}|${codDepartamento}`
-        : codDepAx || "";
+  const depParam =
+    codDepAx && codDepartamento
+      ? `${codDepAx}|${codDepartamento}`
+      : codDepAx || "";
 
-    return `https://soporte.liris.com.ec/rhh/UserDocsF.aspx?Carpeta=${encodeURIComponent(
-      carpeta
-    )}&CodEmp=${codEmp || ""}&DepartMyProcessId=${depParam}`;
+  return `https://soporte.liris.com.ec/rhh/UserDocsF.aspx?Carpeta=${encodeURIComponent(
+    carpeta
+  )}&CodEmp=${codEmp || ""}&DepartMyProcessId=${depParam}`;
+}
+useEffect(() => {
+  if (!rawData || rawData.length === 0) {
+    setFullData([]);
+    setData([]);
+    setLineaNegocioOpts([]);
+    setCentroCostoOpts([]);
+    setDepartamentoOpts([]);
+    return;
   }
-  useEffect(() => {
-    if (!rawData || rawData.length === 0) {
-      setFullData([]);
-      setData([]);
-      setLineaNegocioOpts([]);
-      setCentroCostoOpts([]);
-      setDepartamentoOpts([]);
-      return;
+
+  // 1️⃣ Parsear y limpiar la jerarquía
+  const parsed = parseOrganigramaPersona(rawData);
+  const cleaned = sanitizeHierarchy(parsed);
+
+  // 2️⃣ Guardar datos completos
+  setFullData(cleaned);
+  console.log("Datos limpiados para renderizar:", cleaned);
+  setData(cleaned);
+
+  // 3️⃣ Poblar filtros
+  const lineas = Array.from(
+    new Set(cleaned.map((d) => d.nombreLineaNegocio).filter(Boolean))
+  );
+  setLineaNegocioOpts(sortOptions(lineas.map((ln: any) => ({ value: ln, label: ln }))));
+
+  const ccs = Array.from(
+    new Set(cleaned.map((d) => d.nombreCentroCosto).filter(Boolean))
+  );
+  setCentroCostoOpts(sortOptions(ccs.map((cc: any) => ({ value: cc, label: cc }))));
+
+  const deps = Array.from(
+    new Set(cleaned.map((d) => d.nombreDepartamento).filter(Boolean))
+  );
+  setDepartamentoOpts(sortOptions(deps.map((dep: any) => ({ value: dep, label: dep }))));
+}, [rawData]);
+
+
+useEffect(() => {
+  if (!lineaNegocio) {
+    setCentroCostoOpts([]);
+    if (centroCosto !== null) {
+      setCentroCosto(null);
     }
+    return;
+  }
 
-    // 1️⃣ Parsear y limpiar la jerarquía
-    const parsed = parseOrganigramaPersona(rawData);
-    const cleaned = sanitizeHierarchy(parsed);
-
-    // 2️⃣ Guardar datos completos
-    setFullData(cleaned);
-    console.log("Datos limpiados para renderizar:", cleaned);
-    setData(cleaned);
-
-    // 3️⃣ Poblar filtros
-    const lineas = Array.from(
-      new Set(cleaned.map((d) => d.nombreLineaNegocio).filter(Boolean))
-    );
-    setLineaNegocioOpts(sortOptions(lineas.map((ln: any) => ({ value: ln, label: ln }))));
-
-    const ccs = Array.from(
-      new Set(cleaned.map((d) => d.nombreCentroCosto).filter(Boolean))
-    );
-    setCentroCostoOpts(sortOptions(ccs.map((cc: any) => ({ value: cc, label: cc }))));
-
-    const deps = Array.from(
-      new Set(cleaned.map((d) => d.nombreDepartamento).filter(Boolean))
-    );
-    setDepartamentoOpts(sortOptions(deps.map((dep: any) => ({ value: dep, label: dep }))));
-  }, [rawData]);
+  const ccs = Array.from(
+    new Set(
+      fullData
+        .filter((d) => d.nombreLineaNegocio === lineaNegocio.value)
+        .map((d) => d.nombreCentroCosto)
+        .filter(Boolean)
+    )
+  );
+  setCentroCostoOpts(sortOptions(ccs.map((cc: any) => ({ value: cc, label: cc }))));
+}, [lineaNegocio, fullData, setCentroCostoOpts]); // ✅ sin centroCosto
 
 
-  useEffect(() => {
-    if (!lineaNegocio) {
-      setCentroCostoOpts([]);
-      if (centroCosto !== null) {
-        setCentroCosto(null);
-      }
-      return;
-    }
+useEffect(() => {
+  if (!puedeVerTodo && nodoUsuario) {
+    // Setear automáticamente los filtros
+    const ln = nodoUsuario.nombreLineaNegocio;
+    const cc = nodoUsuario.nombreCentroCosto;
+    const dep = nodoUsuario.nombreDepartamento;
 
-    const ccs = Array.from(
-      new Set(
-        fullData
-          .filter((d) => d.nombreLineaNegocio === lineaNegocio.value)
-          .map((d) => d.nombreCentroCosto)
-          .filter(Boolean)
-      )
-    );
-    setCentroCostoOpts(sortOptions(ccs.map((cc: any) => ({ value: cc, label: cc }))));
-  }, [lineaNegocio, fullData, setCentroCostoOpts]); // ✅ sin centroCosto
+    if (ln) setLineaNegocio({ value: ln, label: ln });
+    if (cc) setCentroCosto({ value: cc, label: cc });
+    if (dep) setDepartamento({ value: dep, label: dep });
+  }
+}, [puedeVerTodo, nodoUsuario]);
 
-
-  useEffect(() => {
-    if (!puedeVerTodo && nodoUsuario) {
-      // Setear automáticamente los filtros
-      const ln = nodoUsuario.nombreLineaNegocio;
-      const cc = nodoUsuario.nombreCentroCosto;
-      const dep = nodoUsuario.nombreDepartamento;
-
-      if (ln) setLineaNegocio({ value: ln, label: ln });
-      if (cc) setCentroCosto({ value: cc, label: cc });
-      if (dep) setDepartamento({ value: dep, label: dep });
-    }
-  }, [puedeVerTodo, nodoUsuario]);
-
-  // 3) Poblar Departamentos en el padre (independiente de los otros filtros)
+// 3) Poblar Departamentos en el padre (independiente de los otros filtros)
   useEffect(() => {
     const deps = Array.from(
       new Set(fullData.map((d) => d.nombreDepartamento).filter(Boolean))
@@ -229,7 +229,7 @@ const OrganigramaPersonaComponent: React.FC<OrganigramaPersonaProps> = ({
 useEffect(() => {
   if (fullData.length === 0) return;
 
-  //  Filtrar según los selectores activos
+  // 🔍 Filtrar según los selectores activos
   const predicate = (n: IEmpleadoNode) => {
     const matchLinea = !lineaNegocio || n.nombreLineaNegocio === lineaNegocio.value;
     const matchCentro = !centroCosto || n.nombreCentroCosto === centroCosto.value;
@@ -237,141 +237,104 @@ useEffect(() => {
     return matchLinea && matchCentro && matchDep;
   };
 
-  // Obtener subconjunto jerárquico
+  // 1️⃣ Obtener subconjunto jerárquico
   let filtered = getHierarchySubset(fullData, predicate);
 
-  //  Eliminar nodos huérfanos sin padre válido
+  // 2️⃣ Eliminar nodos huérfanos sin padre válido
   const validIds = new Set(filtered.map((n) => n.id));
-  filtered = filtered.filter((n) => !n.parentId || validIds.has(n.parentId));
+  filtered = filtered.filter(
+    (n) => !n.parentId || validIds.has(n.parentId)
+  );
 
-  //  Asegurar un solo root
+  // 3️⃣ Asegurar que solo haya un root
   const roots = filtered.filter((n) => !n.parentId);
   if (roots.length > 1) {
     const presidente = filtered.find((n) => n.codigoPosicion === "00001");
     const rootId = presidente ? presidente.id : roots[0].id;
-    console.warn(` ${roots.length} raíces detectadas → se mantendrá solo ${rootId}`);
-    filtered = filtered.filter((n) => n.parentId !== null || n.id === rootId);
+
+    console.warn(`⚠️ ${roots.length} raíces detectadas → se mantendrá solo ${rootId}`);
+
+    filtered = filtered.filter(
+      (n) => n.parentId !== null || n.id === rootId
+    );
   }
 
-  //  Ordenar por nivel jerárquico
-  filtered.sort((a, b) => (a.nivelJerarquico ?? 99) - (b.nivelJerarquico ?? 99));
+  // 4️⃣ Ordenar por puesto (opcional: luego por parentId)
+  filtered.sort((a, b) =>
+    safe(a.puesto).localeCompare(safe(b.puesto), "es", { sensitivity: "base" })
+  );
+
   setData(filtered);
 
+  // 5️⃣ Renderizado seguro
   if (!filtered || filtered.length === 0) {
-    console.warn(" No hay datos válidos para renderizar el organigrama.");
+    console.warn("⚠️ No hay datos válidos para renderizar el organigrama.");
     return;
   }
 
-  // Renderizado del gráfico
   if (chartRef.current) {
+    // 🔁 Actualizar datos existentes
     chartRef.current.data(filtered).render().fit();
   } else {
+    // 🆕 Crear gráfico por primera vez
     chartRef.current = new OrgChart()
       .container(`#${containerId}`)
       .data(filtered)
       .nodeWidth(() => 320)
-      .nodeHeight(() => 140) 
-      .childrenMargin(() => 50)
+      .nodeHeight(() => 140)
+      .childrenMargin(() => 40)
       .compactMarginBetween(() => 30)
-      .compactMarginPair(() => 60)  
-    .compact(false)
-   .linkUpdate((_d: any, _i: number, arr: any[]) => {
-  arr.forEach((el: any) => {
-    el.setAttribute("stroke", "#444");
-    el.setAttribute("stroke-width", "1.2");
-    el.setAttribute("fill", "none");
-
-    const d = el.__data__;
-    if (!d || !d.source || !d.target) return;
-
-    // Nivel jerárquico del nodo hijo
-    const targetNode = d.target.data;
-    const nivel = targetNode?.nivelJerarquico ?? 99;
-    const baseNivel = 3;
-    const factor = 80; // mismo que en nodeContent
-
-    //  Ajuste vertical para que la línea llegue hasta el nodo visual (no solo el rect)
-    const offsetY = (nivel - baseNivel) * factor;
-
-    const parentY = d.source.y;
-    const childY = d.target.y + offsetY; // desplazamiento visual aplicado
-    const diffY = Math.abs(childY - parentY);
-    const curveStrength = Math.max(30, diffY * 0.35);
-
-    //  Redibuja el path de la línea con compensación vertical
-    const newPath = `
-      M ${d.source.x},${d.source.y}
-      C ${d.source.x},${d.source.y + curveStrength}
-        ${d.target.x},${childY - curveStrength}
-        ${d.target.x},${childY}
-    `;
-
-    el.setAttribute("d", newPath);
-  });
-})
-      // Contenido visual de cada nodo
+      .compactMarginPair(() => 40)
+      .compact(false)
+      .linkUpdate((_d: any, _i: number, arr: any[]) => {
+        arr.forEach((el: any) => {
+          el.setAttribute("stroke", "#444");
+          el.setAttribute("stroke-width", "1.0");
+        });
+      })
       .nodeContent((d: any) => {
         const emp = d.data as IEmpleadoNode;
         const isVacante = emp.tipo === "vacante";
-        const nivel = emp.nivelJerarquico && emp.nivelJerarquico !== 99 ? emp.nivelJerarquico : 3;
-        const baseNivel = 3;
-        const factor = 80; // cuanto más grande, más escalonado
-
-        const offsetY = (nivel - baseNivel) * factor;
 
         return `
-          <div style="
-            transform: translateY(${offsetY}px);
-            padding:10px;
-            border-radius:10px;
-            background:${isVacante ? "#f9f9f9" : "#fff"};
-            box-shadow:0 2px 6px rgba(0,0,0,0.15);
-            text-align:center;
-            display:flex;
-            flex-direction:column;
-            align-items:center;
-            transition: transform 0.4s ease;
-          ">
+          <div style="padding:10px; border-radius:10px; background:${isVacante ? "#f9f9f9" : "#fff"};
+                      box-shadow:0 2px 6px rgba(0,0,0,0.15);
+                      text-align:center; display:flex; flex-direction:column; align-items:center;">
             ${
               isVacante
-                ? `<div style="width:50px; height:50px; border-radius:50%;
-                              background:#e5e7eb; display:flex;
-                              align-items:center; justify-content:center; margin-bottom:6px;">
-                     <svg xmlns='http://www.w3.org/2000/svg' fill='#9ca3af' viewBox='0 0 24 24' width='32' height='32'>
-                       <path d='M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5
-                                -5 2.3-5 5 2.3 5 5 5zm0 2c-3.3
-                                0-10 1.7-10 5v3h20v-3c0-3.3
-                                -6.7-5-10-5z'/>
+                ? `<div style="width:50px; height:50px; border-radius:50%; margin-bottom:6px;
+                             background:#e5e7eb; display:flex; align-items:center; justify-content:center;">
+                     <svg xmlns="http://www.w3.org/2000/svg" fill="#9ca3af" viewBox="0 0 24 24" width="32" height="32">
+                       <path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 
+                                2.3-5 5 2.3 5 5 5zm0 2c-3.3 
+                                0-10 1.7-10 5v3h20v-3c0-3.3-6.7-5-10-5z"/>
                      </svg>
                    </div>`
                 : emp.foto
-                ? `<img src='${emp.foto}' alt='Foto'
-                         style='width:50px; height:50px; border-radius:50%; margin-bottom:6px;' />`
-                : `<div style='width:50px; height:50px; border-radius:50%;
-                              background:#e5e7eb; display:flex;
-                              align-items:center; justify-content:center; margin-bottom:6px;'>
-                     <svg xmlns='http://www.w3.org/2000/svg' fill='#9ca3af' viewBox='0 0 24 24' width='32' height='32'>
-                       <path d='M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5
-                                -5 2.3-5 5 2.3 5 5 5zm0 2c-3.3
-                                0-10 1.7-10 5v3h20v-3c0-3.3
-                                -6.7-5-10-5z'/>
+                ? `<img src="${emp.foto}" alt="Foto"
+                         style="width:50px; height:50px; border-radius:50%; margin-bottom:6px;" />`
+                : `<div style="width:50px; height:50px; border-radius:50%; margin-bottom:6px;
+                              background:#e5e7eb; display:flex; align-items:center; justify-content:center;">
+                     <svg xmlns="http://www.w3.org/2000/svg" fill="#9ca3af" viewBox="0 0 24 24" width="32" height="32">
+                       <path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 
+                                2.3-5 5 2.3 5 5 5zm0 2c-3.3 
+                                0-10 1.7-10 5v3h20v-3c0-3.3-6.7-5-10-5z"/>
                      </svg>
                    </div>`
             }
-            <div style='font-weight:bold; font-size:14px; color:#333; margin-bottom:4px;'>
+            <div style="font-weight:bold; font-size:14px; color:#333; margin-bottom:4px;">
               ${isVacante ? "VACANTE" : `${emp.nombre} ${emp.apellido}`}
             </div>
-            <div style='font-size:12px; color:#666; margin-bottom:6px;'>
+            <div style="font-size:12px; color:#666; margin-bottom:6px;">
               ${emp.puesto || ""}
             </div>
             ${
               isVacante
                 ? ""
-                : `<button class='btn-ver-persona' data-id='${emp.id}'
-                           style='padding:4px 8px; border-radius:6px;
-                                  background:#007bff; color:#fff;
-                                  border:none; cursor:pointer;
-                                  font-size:12px;'>
+                : `<button class="btn-ver-persona" data-id="${emp.id}"
+                           style="padding:4px 8px; border-radius:6px;
+                                  background:#007bff; color:#fff; border:none;
+                                  cursor:pointer; font-size:12px;">
                     Ver ficha
                   </button>`
             }
@@ -381,14 +344,8 @@ useEffect(() => {
       .render()
       .fit();
 
-    //  Autoajuste al redimensionar
-    const handleResize = () => {
-      try {
-        chartRef.current?.fit();
-      } catch (err) {
-        console.warn(" fit() falló temporalmente:", err);
-      }
-    };
+    // ✅ Autoajuste al redimensionar
+    const handleResize = () => chartRef.current?.fit();
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }
@@ -434,17 +391,15 @@ useEffect(() => {
       URL.revokeObjectURL(url);
     }, 300);
   };
-  {
-    !puedeVerTodo && data.length === 0 && (
-      <div className="p-6 text-center text-red-600 text-lg font-semibold">
-        No tienes permisos para ver el organigrama completo. Solo se mostrará tu departamento.
-      </div>
-    )
-  }
+  {!puedeVerTodo && data.length === 0 && (
+  <div className="p-6 text-center text-red-600 text-lg font-semibold">
+    No tienes permisos para ver el organigrama completo. Solo se mostrará tu departamento.
+  </div>
+)}
   return (
-
+    
     <div className="p-3">
-      {/*  Botones de control */}
+      {/* 🔧 Botones de control */}
       <div className="flex flex-col sm:flex-row gap-2 mb-4 py-2 px-1 sm:px-0 justify-center sm:justify-end">
         <button className="w-full sm:w-auto px-4 py-2 bg-gray-700 text-white rounded flex items-center gap-2" onClick={zoomIn}>
           <FontAwesomeIcon icon={faMagnifyingGlassPlus} /> Zoom
@@ -464,18 +419,18 @@ useEffect(() => {
         <button className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded flex items-center gap-2" onClick={handleExportSVG}>
           <FontAwesomeIcon icon={faFileArrowDown} /> Exportar SVG
         </button>
-        <button
-          onClick={() => chartRef.current?.compact(false).render().fit()}
-          className="px-3 py-2 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700"
-        >
-          Horizontal
-        </button>
-        <button
-          onClick={() => chartRef.current?.compact(true).render().fit()}
-          className="px-3 py-2 bg-green-600 text-white rounded-lg shadow hover:bg-green-700"
-        >
-          Vertical
-        </button>
+         <button
+    onClick={() => chartRef.current?.compact(false).render().fit()}
+    className="px-3 py-2 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700"
+  >
+    Horizontal
+  </button>
+  <button
+    onClick={() => chartRef.current?.compact(true).render().fit()}
+    className="px-3 py-2 bg-green-600 text-white rounded-lg shadow hover:bg-green-700"
+  >
+    Vertical
+  </button>
       </div>
 
       {/* Contenedor del organigrama */}
@@ -520,7 +475,7 @@ useEffect(() => {
                 <p>
                   <strong>Fecha de ingreso a la empresa:</strong> {selectedEmpleado.fechaIngreso || "N/A"}
                 </p>
-
+                
               </div>
 
               <div className="mt-6 flex flex-nowrap gap-3 justify-center">

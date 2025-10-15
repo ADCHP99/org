@@ -1,4 +1,1 @@
 @import "tailwindcss";
-.orgchart-node:nth-child(even) {
-  margin-top: 20px;
-}

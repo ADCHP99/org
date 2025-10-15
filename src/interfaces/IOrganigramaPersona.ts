@@ -28,7 +28,7 @@ export interface IEmpleadoNode {
     rutaManual?: string;
     codCentroCosto?: string;
     codDepAx?: string;
-    nivelJerarquico?: number;
+
     children?: IEmpleadoNode[]; 
     fechaIngreso?: string;
     userid?: string;
@@ -60,6 +60,4 @@ export interface IEmpleadoRaw {
   codCentroCosto?: string;  
   fechaIngreso?:string;
   userid?:string;
-  nivelJerarquico?: number;
-
 }

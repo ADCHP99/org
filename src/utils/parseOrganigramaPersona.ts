@@ -5,6 +5,7 @@ function toStr(v: any): string {
 }
 
 function preferirUserIdValido(lista: string[]): string {
+  // Devuelve el userid con letras si existe, si no el primero numérico
   const limpio = lista.map(toStr).filter(Boolean);
   const conLetras = limpio.find((u) => /[a-zA-Z]/.test(u));
   if (conLetras) return conLetras.toLowerCase();
@@ -17,20 +18,42 @@ function normalizarUserId(input: any): string {
   const raw = toStr(input);
   if (!raw) return "";
 
+  // Si viene con dominio (interno\algo)
   if (raw.includes("\\")) {
     const partes = raw.split("\\");
     const valor = partes[1]?.trim().toLowerCase() || "";
-    return valor;
+
+    // si el valor del dominio contiene letras, se asume login (achucuyan)
+    if (/[a-zA-Z]/.test(valor)) {
+      return valor;
+    } else {
+      // si solo tiene números, se asume que es cédula
+      return valor;
+    }
   }
 
-  return raw.trim().toLowerCase();
+  // Si no trae dominio
+  const limpio = raw.trim().toLowerCase();
+
+  // Si tiene letras → achucuyan
+  if (/[a-zA-Z]/.test(limpio)) {
+    return limpio;
+  }
+
+  // Si es solo números → cédula
+  if (/^[0-9]+$/.test(limpio)) {
+    return limpio;
+  }
+
+  // Caso raro: mezcla o vacío
+  return limpio;
 }
 
 export function parseOrganigramaPersona(json: IEmpleadoRaw[]): IEmpleadoNode[] {
   const nodos: IEmpleadoNode[] = [];
   const posToEmp: Record<string, string> = {};
 
-  //  Filtrar duplicados preferidos
+  // 🔎 Filtrar duplicados: preferir registros con userid alfanumérico (login)
   const filtrado = Object.values(
     json.reduce((acc, item) => {
       const codigo = toStr(item.codigoEmpleado);
@@ -43,14 +66,16 @@ export function parseOrganigramaPersona(json: IEmpleadoRaw[]): IEmpleadoNode[] {
         const nuevoTieneLetras = /[a-zA-Z]/.test(userid);
         const actualTieneLetras = /[a-zA-Z]/.test(actual);
 
-        if (nuevoTieneLetras && !actualTieneLetras) acc[codigo] = item;
+        if (nuevoTieneLetras && !actualTieneLetras) {
+          acc[codigo] = item;
+        }
       }
 
       return acc;
     }, {} as Record<string, IEmpleadoRaw>)
   );
 
-  //  Indexar posición → empleado real
+  // Indexar posición → empleado (solo si tiene persona real)
   json.forEach((item) => {
     const codigoPosicion = toStr(item.codigoPosicion || (item as any).CodigoPosicion);
     const codigoEmpleado = toStr(item.codigoEmpleado);
@@ -59,42 +84,57 @@ export function parseOrganigramaPersona(json: IEmpleadoRaw[]): IEmpleadoNode[] {
     }
   });
 
-  // Construir nodos persona/vacante
+  // Recorrer y construir nodos
   json.forEach((item) => {
     const codigoPosicion = toStr(item.codigoPosicion || (item as any).CodigoPosicion);
     let codigoPosicionReporta = toStr(
       item.codigoPosicionReporta || (item as any).CodigoPosicionReporta
     );
 
+    //  Ignorar nodos sin posición
     if (!codigoPosicion) return;
+
+    // ⚠️ Ignorar directorio (00006) excepto presidente
     if (codigoPosicion === "00006") return;
     if (codigoPosicionReporta === "00006" && codigoPosicion !== "00001") return;
 
-    if (codigoPosicion === "00001") codigoPosicionReporta = "";
+    // Para el presidente, forzar como root
+    if (codigoPosicion === "00001") {
+      codigoPosicionReporta = "";
+    }
 
     let parentId: string | null = null;
-    if (codigoPosicion === "00001") parentId = null;
-    else if (item.codigoEmpleadoJefe || item.JefeInmediato?.codigoEmpleadoJefe) {
+
+    if (codigoPosicion === "00001") {
+      parentId = null;
+    } else if (item.codigoEmpleadoJefe || item.JefeInmediato?.codigoEmpleadoJefe) {
       const jefeEmpleado =
         item.codigoEmpleadoJefe || item.JefeInmediato?.codigoEmpleadoJefe;
       parentId = jefeEmpleado ? `E-${toStr(jefeEmpleado)}` : null;
     } else if (codigoPosicionReporta) {
       const jefePorPos = posToEmp[codigoPosicionReporta];
-      parentId = jefePorPos ? `E-${jefePorPos}` : `P-${codigoPosicionReporta}`;
+      if (jefePorPos) {
+        // jefe con persona real
+        parentId = `E-${jefePorPos}`;
+      } else {
+        // jefe es vacante → enganchar al nodo de posición vacante
+        parentId = `P-${codigoPosicionReporta}`;
+      }
     }
 
+    // ✅ Detectar si es vacante
     const esVacante = item.vacante === "1" || !toStr(item.codigoEmpleado);
-    const nodeId = esVacante ? `P-${codigoPosicion}` : `E-${toStr(item.codigoEmpleado)}`;
-    if (parentId === nodeId) parentId = null;
 
-    //Normalizar nivel jerárquico (3–7 o 99)
-    const nivelJerarquico =
-      Number(item.nivelJerarquico ?? 99) >= 3 && Number(item.nivelJerarquico) <= 7
-        ? Number(item.nivelJerarquico)
-        : 99;
+    const nodeId = esVacante
+      ? `P-${codigoPosicion}`
+      : `E-${toStr(item.codigoEmpleado)}`;
+
+    // Evitar ciclos
+    if (parentId === nodeId) parentId = null;
 
     if (esVacante) {
       if (!toStr(item.puesto)) return;
+
       nodos.push({
         id: nodeId,
         parentId,
@@ -115,8 +155,7 @@ export function parseOrganigramaPersona(json: IEmpleadoRaw[]): IEmpleadoNode[] {
         codigoPosicionReporta,
         vacante: true,
         rutaManual: "",
-        userid: "",
-        nivelJerarquico,
+        userid: ""
       });
     } else {
       nodos.push({
@@ -140,25 +179,34 @@ export function parseOrganigramaPersona(json: IEmpleadoRaw[]): IEmpleadoNode[] {
         vacante: false,
         rutaManual: toStr((item as any).rutaManual || (item as any).ruta),
         fechaIngreso: toStr(item.fechaIngreso || ""),
-        userid: normalizarUserId(item.userid || ""),
-        nivelJerarquico,
+        userid: normalizarUserId(item.userid || "")
       });
     }
   });
 
-  //  Limpiar raíces múltiples
-  const roots = nodos.filter((n) => n.parentId === null);
+  // 🔹 Limpieza final: eliminar raíces múltiples (dejar solo el presidente)
+  let roots = nodos.filter((n) => n.parentId === null);
+
   if (roots.length > 1) {
     const presidente = nodos.find((n) => n.codigoPosicion === "00001");
     const rootId = presidente ? presidente.id : roots[0].id;
-    const filtrados = nodos.filter((n) => n.parentId !== null || n.id === rootId);
-    nodos.splice(0, nodos.length, ...filtrados);
+
+    console.warn(`⚠️ Se detectaron ${roots.length} raíces. Se mantendrá solo ${rootId}`);
+
+    // Eliminar todos los demás roots (huérfanos)
+    const nodosFiltrados = nodos.filter(
+      (n) => n.parentId !== null || n.id === rootId
+    );
+
+    nodos.splice(0, nodos.length, ...nodosFiltrados);
   }
 
-  // 🔹 Validar duplicados
+  // 🔎 Validar IDs duplicados (opcional)
   const ids = new Set<string>();
   nodos.forEach((n) => {
-    if (ids.has(n.id)) console.warn("⚠️ Duplicado detectado:", n.id);
+    if (ids.has(n.id)) {
+      console.warn("⚠️ Duplicado detectado y omitido:", n.id);
+    }
     ids.add(n.id);
   });
 

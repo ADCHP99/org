@@ -7,6 +7,7 @@ export function parseOrganigramaCargo(json: any): ICargoNode[] {
 
   if (!json) return [];
 
+  // ✅ Detectar distintas estructuras (Cargo[], Organigrama.Cargo, etc.)
   const cargosRaw =
     Array.isArray(json)
       ? json
@@ -34,6 +35,8 @@ export function parseOrganigramaCargo(json: any): ICargoNode[] {
     const group = cargosMap.get(codPos)!;
 
     const empleadosArr: IEmpleado[] = [];
+
+    // 🔹 Normalizar Empleado (puede venir como objeto o array)
     const empleadosRaw = Array.isArray(item.Empleado)
       ? item.Empleado
       : item.Empleado
@@ -43,6 +46,7 @@ export function parseOrganigramaCargo(json: any): ICargoNode[] {
     for (const emp of empleadosRaw) {
       if (!emp) continue;
 
+      // ✅ Corregido: reconocer código de posición y usar el del cargo si no viene
       const empCodPos =
         toStr(emp.codigoPosicion) ||
         toStr(emp.COD_POSICION) ||
@@ -65,18 +69,25 @@ export function parseOrganigramaCargo(json: any): ICargoNode[] {
         rutaManual: toStr(emp.manual || emp.rutaManual || emp.ruta),
         fechaIngreso: toStr(emp.fechaIngreso || emp.InicioContrato),
         userid: toStr(emp.userid),
-        codigoPosicion: empCodPos,
+        codigoPosicion: empCodPos, // ✅ ahora siempre tiene valor
       });
     }
 
+    // 🔹 Asociar empleados que pertenecen al mismo cargo
     for (const emp of empleadosArr) {
+      // ⚙️ Si el empleado no trae códigoPosición explícito, usar el del cargo actual
       const empPos = emp.codigoPosicion || codPos;
-      if (empPos === codPos && !group.empleados.some((e) => e.codigoEmpleado === emp.codigoEmpleado)) {
+
+      if (
+        empPos === codPos &&
+        !group.empleados.some((e) => e.codigoEmpleado === emp.codigoEmpleado)
+      ) {
         group.empleados.push(emp);
       }
     }
   }
 
+  // 🔹 Construir nodos finales
   const nodos: ICargoNode[] = [];
 
   for (const [codigoPosicion, { base, empleados }] of cargosMap.entries()) {
@@ -86,18 +97,18 @@ export function parseOrganigramaCargo(json: any): ICargoNode[] {
 
     const empRef = empleados[0] || {};
 
-    const lineaNeg = toStr(base.nombreLineaNegocio) || toStr(empRef.nombreLineaNegocio);
-    const centro = toStr(base.nombreCentroCosto) || toStr(empRef.nombreCentroCosto);
-    const dep = toStr(base.nombreDepartamento) || toStr(empRef.nombreDepartamento);
-    const codDep = toStr(base.codDepartamento) || toStr(empRef.codDepartamento);
-    const codCentro = toStr(base.codCentroCosto) || toStr(empRef.codCentroCosto);
-    const codLinea = toStr(base.codLineaNegocio) || toStr(empRef.codDepAx);
-
-    // Normalizar nivel jerárquico
-    const nivelJerarquico =
-      Number(base.nivelJerarquico ?? 99) >= 3 && Number(base.nivelJerarquico) <= 7
-        ? Number(base.nivelJerarquico)
-        : 99;
+    const lineaNeg =
+      toStr(base.nombreLineaNegocio) || toStr(empRef.nombreLineaNegocio);
+    const centro =
+      toStr(base.nombreCentroCosto) || toStr(empRef.nombreCentroCosto);
+    const dep =
+      toStr(base.nombreDepartamento) || toStr(empRef.nombreDepartamento);
+    const codDep =
+      toStr(base.codDepartamento) || toStr(empRef.codDepartamento);
+    const codCentro =
+      toStr(base.codCentroCosto) || toStr(empRef.codCentroCosto);
+    const codLinea =
+      toStr(base.codLineaNegocio) || toStr(empRef.codDepAx);
 
     nodos.push({
       id: `C-${codigoPosicion}`,
@@ -116,7 +127,6 @@ export function parseOrganigramaCargo(json: any): ICargoNode[] {
       estadoCargo: toStr(base.estadoCargo),
       esVacante: isVacante,
       empleados,
-      nivelJerarquico, 
     });
   }
 
