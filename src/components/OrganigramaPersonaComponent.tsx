@@ -15,20 +15,6 @@ import {
 
 const safe = (v?: string) => (v ?? "").toString().trim();
 
-function sortByParentThen<T extends { parentId: string | null }>(
-  nodes: T[],
-  cmp: (a: T, b: T) => number
-): T[] {
-  const arr = [...nodes];
-  arr.sort((a, b) => {
-    const pa = safe(a.parentId || "");
-    const pb = safe(b.parentId || "");
-    if (pa !== pb) return pa.localeCompare(pb, "en", { numeric: true });
-    return cmp(a, b);
-  });
-  return arr;
-}
-
 function sanitizeHierarchy(data: IEmpleadoNode[]): IEmpleadoNode[] {
   
   const validIds = new Set(data.map((n) => n.id));
@@ -100,7 +86,6 @@ const OrganigramaPersonaComponent: React.FC<OrganigramaPersonaProps> = ({
   rawData,
   viewMode,
   setViewMode,
-
   // filtros (valores) desde el padre
   lineaNegocio,
   setLineaNegocio,
@@ -157,16 +142,16 @@ useEffect(() => {
     return;
   }
 
-  // 1️⃣ Parsear y limpiar la jerarquía
+  //  Parsear y limpiar la jerarquía
   const parsed = parseOrganigramaPersona(rawData);
   const cleaned = sanitizeHierarchy(parsed);
 
-  // 2️⃣ Guardar datos completos
+  //  Guardar datos completos
   setFullData(cleaned);
   console.log("Datos limpiados para renderizar:", cleaned);
   setData(cleaned);
 
-  // 3️⃣ Poblar filtros
+  //  Poblar filtros
   const lineas = Array.from(
     new Set(cleaned.map((d) => d.nombreLineaNegocio).filter(Boolean))
   );
@@ -237,61 +222,47 @@ useEffect(() => {
     return matchLinea && matchCentro && matchDep;
   };
 
-  // 1️⃣ Obtener subconjunto jerárquico
+  //  Obtener subconjunto jerárquico
   let filtered = getHierarchySubset(fullData, predicate);
 
-  // 2️⃣ Eliminar nodos huérfanos sin padre válido
+  //  Eliminar nodos huérfanos sin padre válido
   const validIds = new Set(filtered.map((n) => n.id));
-  filtered = filtered.filter(
-    (n) => !n.parentId || validIds.has(n.parentId)
-  );
+  filtered = filtered.filter((n) => !n.parentId || validIds.has(n.parentId));
 
-  // 3️⃣ Asegurar que solo haya un root
+  //  Asegurar que solo haya un root
   const roots = filtered.filter((n) => !n.parentId);
   if (roots.length > 1) {
     const presidente = filtered.find((n) => n.codigoPosicion === "00001");
     const rootId = presidente ? presidente.id : roots[0].id;
-
-
-    filtered = filtered.filter(
-      (n) => n.parentId !== null || n.id === rootId
-    );
+    filtered = filtered.filter((n) => n.parentId !== null || n.id === rootId);
   }
 
-  // 4️⃣ Ordenar por puesto (opcional: luego por parentId)
+  //  Ordenar por puesto y nivel jerárquico
   filtered.sort((a, b) =>
     safe(a.puesto).localeCompare(safe(b.puesto), "es", { sensitivity: "base" })
   );
-
-  setData(filtered);
-    //  Ordenar por nivel jerárquico
   filtered.sort((a, b) => (a.nivelJerarquico ?? 99) - (b.nivelJerarquico ?? 99));
+
   setData(filtered);
 
   if (!filtered || filtered.length === 0) {
-    console.warn("No hay datos válidos para renderizar el organigrama.");
+    console.warn(" No hay datos válidos para renderizar el organigrama.");
     return;
   }
 
+  //  Calcular desplazamiento visual según nivel jerárquico
   function getOffsetByNivel(nivel?: number): number {
-    if (!nivel || nivel === 99) return 0; // sin jerarquía conocida
-    const baseNivel = 3; // nivel más alto
-    const factor = 60;   // separación visual entre subniveles
+    if (!nivel || nivel === 99) return 0;
+    const baseNivel = 3;
+    const factor = 60;
     const offset = (nivel - baseNivel) * factor;
     return offset > 0 ? offset : 0;
   }
 
-  // 5️⃣ Renderizado seguro
-  if (!filtered || filtered.length === 0) {
-    console.warn("⚠️ No hay datos válidos para renderizar el organigrama.");
-    return;
-  }
-
+  //  Renderizar gráfico
   if (chartRef.current) {
-    // 🔁 Actualizar datos existentes
     chartRef.current.data(filtered).render().fit();
   } else {
-    // 🆕 Crear gráfico por primera vez
     chartRef.current = new OrgChart()
       .container(`#${containerId}`)
       .data(filtered)
@@ -302,50 +273,66 @@ useEffect(() => {
       .compactMarginPair(() => 110)
       .compact(false)
 
+      //  LÍNEAS ENTRE NODOS
       .linkUpdate((_d: any, _i: number, arr: any[]) => {
-  arr.forEach((el: any) => {
-    el.setAttribute("stroke", "#444");
-    el.setAttribute("stroke-width", "1.2");
-    el.setAttribute("fill", "none");
+        arr.forEach((el: any) => {
+          el.setAttribute("stroke", "#444");
+          el.setAttribute("stroke-width", "1.2");
+          el.setAttribute("fill", "none");
 
-    const d = el.__data__;
-    if (!d || !d.source || !d.target) return;
+          const d = el.__data__;
+          if (!d || !d.source || !d.target) return;
 
-    const targetNode = d.target.data;
-    const nodoAltura = 180; // misma altura que nodeHeight()
-    const mitadNodo = nodoAltura / 2;
+          const nodeHeight = 180;
+          const halfNode = nodeHeight / 2;
 
-    const offsetY = getOffsetByNivel(targetNode?.nivelJerarquico);
-    const parentY = d.source.y + mitadNodo; // salida desde centro del nodo padre
-    const childY = d.target.y + offsetY + mitadNodo; // llegada al centro del nodo hijo
+          const sourceData = d.source.data;
+          const targetData = d.target.data;
 
-    const diffY = Math.abs(childY - parentY);
-    const curveStrength = Math.max(30, diffY * 0.35);
+          const offsetParent = getOffsetByNivel(sourceData?.nivelJerarquico);
+          const offsetChild = getOffsetByNivel(targetData?.nivelJerarquico);
 
-    const newPath = `
-      M ${d.source.x},${parentY}
-      C ${d.source.x},${parentY + curveStrength}
-        ${d.target.x},${childY - curveStrength}
-        ${d.target.x},${childY}
-    `;
-    el.setAttribute("d", newPath);
-  });
-})
+          
+          const parentY = d.source.y + offsetParent + halfNode;
 
+          // 
+          const childY = d.target.y + offsetChild - halfNode + 5; // +15 = ajuste visual fino
+
+          const diffY = Math.abs(childY - parentY);
+          const curve = Math.max(30, diffY * 0.45);
+
+          const newPath = `
+            M ${d.source.x},${parentY}
+            C ${d.source.x},${parentY + curve}
+              ${d.target.x},${childY - curve}
+              ${d.target.x},${childY}
+          `;
+
+          el.setAttribute("d", newPath);
+        });
+      })
+
+      //  CONTENIDO DE LOS NODOS
       .nodeContent((d: any) => {
         const emp = d.data as IEmpleadoNode;
         const isVacante = emp.tipo === "vacante";
-                const offsetY = getOffsetByNivel(emp.nivelJerarquico);
+        const offsetY = getOffsetByNivel(emp.nivelJerarquico);
 
         return `
-          <div style=" position: relative;
-            top: ${offsetY}px;padding:10px; border-radius:10px; background:${isVacante ? "#f9f9f9" : "#fff"};
+          <div style="position: relative;
+                      top: ${offsetY}px;
+                      padding:10px;
+                      border-radius:10px;
+                      background:${isVacante ? "#f9f9f9" : "#fff"};
                       box-shadow:0 2px 6px rgba(0,0,0,0.15);
-                      text-align:center; display:flex; flex-direction:column; align-items:center;">
+                      text-align:center;
+                      display:flex;
+                      flex-direction:column;
+                      align-items:center;">
             ${
               isVacante
-                ? `<div style="width:50px; height:50px; border-radius:50%; margin-bottom:6px;
-                             background:#e5e7eb; display:flex; align-items:center; justify-content:center;">
+                ? `<div style="width:50px;height:50px;border-radius:50%;margin-bottom:6px;
+                              background:#e5e7eb;display:flex;align-items:center;justify-content:center;">
                      <svg xmlns="http://www.w3.org/2000/svg" fill="#9ca3af" viewBox="0 0 24 24" width="32" height="32">
                        <path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 
                                 2.3-5 5 2.3 5 5 5zm0 2c-3.3 
@@ -354,9 +341,9 @@ useEffect(() => {
                    </div>`
                 : emp.foto
                 ? `<img src="${emp.foto}" alt="Foto"
-                         style="width:50px; height:50px; border-radius:50%; margin-bottom:6px;" />`
-                : `<div style="width:50px; height:50px; border-radius:50%; margin-bottom:6px;
-                              background:#e5e7eb; display:flex; align-items:center; justify-content:center;">
+                        style="width:50px;height:50px;border-radius:50%;margin-bottom:6px;" />`
+                : `<div style="width:50px;height:50px;border-radius:50%;margin-bottom:6px;
+                              background:#e5e7eb;display:flex;align-items:center;justify-content:center;">
                      <svg xmlns="http://www.w3.org/2000/svg" fill="#9ca3af" viewBox="0 0 24 24" width="32" height="32">
                        <path d="M12 12c2.7 0 5-2.3 5-5s-2.3-5-5-5-5 
                                 2.3-5 5 2.3 5 5 5zm0 2c-3.3 
@@ -364,19 +351,19 @@ useEffect(() => {
                      </svg>
                    </div>`
             }
-            <div style="font-weight:bold; font-size:14px; color:#333; margin-bottom:4px;">
+            <div style="font-weight:bold;font-size:14px;color:#333;margin-bottom:4px;">
               ${isVacante ? "VACANTE" : `${emp.nombre} ${emp.apellido}`}
             </div>
-            <div style="font-size:12px; color:#666; margin-bottom:6px;">
+            <div style="font-size:12px;color:#666;margin-bottom:6px;">
               ${emp.puesto || ""}
             </div>
             ${
               isVacante
                 ? ""
                 : `<button class="btn-ver-persona" data-id="${emp.id}"
-                           style="padding:4px 8px; border-radius:6px;
-                                  background:#007bff; color:#fff; border:none;
-                                  cursor:pointer; font-size:12px;">
+                           style="padding:4px 8px;border-radius:6px;
+                                  background:#007bff;color:#fff;border:none;
+                                  cursor:pointer;font-size:12px;">
                     Ver ficha
                   </button>`
             }
@@ -386,7 +373,7 @@ useEffect(() => {
       .render()
       .fit();
 
-    // ✅ Autoajuste al redimensionar
+    //  Autoajuste al redimensionar
     const handleResize = () => chartRef.current?.fit();
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
@@ -441,7 +428,7 @@ useEffect(() => {
   return (
     
     <div className="p-3">
-      {/* 🔧 Botones de control */}
+      {/* Botones de control */}
       <div className="flex flex-col sm:flex-row gap-2 mb-4 py-2 px-1 sm:px-0 justify-center sm:justify-end">
         <button className="w-full sm:w-auto px-4 py-2 bg-gray-700 text-white rounded flex items-center gap-2" onClick={zoomIn}>
           <FontAwesomeIcon icon={faMagnifyingGlassPlus} /> Zoom
@@ -474,12 +461,10 @@ useEffect(() => {
     Vertical
   </button>
       </div>
-
       {/* Contenedor del organigrama */}
       <div className="w-full overflow-x-auto">
         <div id={containerId} className="w-full h-full"></div>
       </div>
-
       {/* Modal de ficha */}
       {selectedEmpleado && selectedEmpleado.tipo === "persona" && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
